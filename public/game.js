@@ -251,16 +251,66 @@ const stars = new THREE.Points(
 );
 scene.add(stars);
 
-// Moon with halo
-const moon = new THREE.Mesh(
-  new THREE.SphereGeometry(18, 24, 24),
-  new THREE.MeshBasicMaterial({ color: 0xf5f1e6, fog: false })
-);
-moon.position.set(-250, 260, -380);
-scene.add(moon);
-const moonHalo = glowSprite(makeGlowTexture('rgba(245,241,230,0.9)', 'rgba(165,184,208,0.3)'), 140, 0.7);
-moonHalo.position.copy(moon.position);
-scene.add(moonHalo);
+function makeMoonTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  
+  // Base lunar surface gradient
+  const grad = g.createRadialGradient(220, 220, 20, 256, 256, 250);
+  grad.addColorStop(0, '#fffaeb');
+  grad.addColorStop(0.5, '#eae5d4');
+  grad.addColorStop(0.85, '#d0cbba');
+  grad.addColorStop(1, '#b5afa0');
+  g.fillStyle = grad;
+  g.beginPath();
+  g.arc(256, 256, 250, 0, Math.PI * 2);
+  g.fill();
+
+  // Procedural lunar craters / maria
+  let s = 888;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 45; i++) {
+    const cx = 90 + rnd() * 332;
+    const cy = 90 + rnd() * 332;
+    const r = 10 + rnd() * 48;
+    const craterGrad = g.createRadialGradient(cx, cy, r * 0.1, cx, cy, r);
+    craterGrad.addColorStop(0, 'rgba(105, 100, 90, 0.48)');
+    craterGrad.addColorStop(0.75, 'rgba(140, 135, 125, 0.22)');
+    craterGrad.addColorStop(1, 'rgba(210, 205, 195, 0)');
+    g.fillStyle = craterGrad;
+    g.beginPath();
+    g.arc(cx, cy, r, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  return new THREE.CanvasTexture(c);
+}
+
+// Moon with atmospheric double halo positioned in player's forward sky
+const moonGroup = new THREE.Group();
+const moonPos = new THREE.Vector3(75, 105, 210);
+
+const moonGeo = new THREE.SphereGeometry(22, 32, 32);
+const moonMat = new THREE.MeshBasicMaterial({
+  map: makeMoonTexture(),
+  fog: false,
+  depthWrite: false,
+});
+const moon = new THREE.Mesh(moonGeo, moonMat);
+moon.rotation.y = -Math.PI / 4;
+moonGroup.add(moon);
+
+// Inner warm golden glow
+const innerHalo = glowSprite(makeGlowTexture('rgba(255,248,220,0.95)', 'rgba(255,225,140,0.4)'), 95, 0.85);
+moonGroup.add(innerHalo);
+
+// Outer mystical atmospheric corona
+const outerHalo = glowSprite(makeGlowTexture('rgba(180,210,255,0.6)', 'rgba(100,145,220,0.15)'), 230, 0.5);
+moonGroup.add(outerHalo);
+
+moonGroup.position.copy(moonPos);
+scene.add(moonGroup);
 
 // Drifting cloud layers
 const cloudTex = makeCloudTexture();
@@ -1317,7 +1367,7 @@ function gameLoop(currentTime) {
     if (pp.array[i * 3 + 1] > 14) pp.array[i * 3 + 1] = 0;
   }
   pp.needsUpdate = true;
-  moonLight.position.set(playerGroup.position.x + 30, 80, playerGroup.position.z + 40);
+  moonLight.position.set(playerGroup.position.x + 35, 80, playerGroup.position.z + 70);
   moonLight.target.position.copy(playerGroup.position);
   moonLight.target.updateMatrixWorld();
 
