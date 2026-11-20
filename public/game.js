@@ -344,13 +344,92 @@ function addGrass(cx, cz, R, rnd) {
   islandGroup.add(inst);
 }
 
+function createStylizedTree(h, rnd, trunkMat, leafMat) {
+  const tree = new THREE.Group();
+  
+  // Curved/tapered trunk with multiple segments
+  const trunkSegments = 3;
+  const segHeight = h / trunkSegments;
+  let currY = 0;
+  let currRadius = 0.28;
+  const leanAngleX = (rnd() - 0.5) * 0.18;
+  const leanAngleZ = (rnd() - 0.5) * 0.18;
+
+  for (let s = 0; s < trunkSegments; s++) {
+    const topRadius = currRadius * 0.75;
+    const segGeo = new THREE.CylinderGeometry(topRadius, currRadius, segHeight, 7);
+    segGeo.translate(0, segHeight / 2, 0);
+    const segMesh = new THREE.Mesh(segGeo, trunkMat);
+    segMesh.position.set(s * leanAngleX * 0.5, currY, s * leanAngleZ * 0.5);
+    segMesh.rotation.x = leanAngleX * (s + 1) * 0.5;
+    segMesh.rotation.z = leanAngleZ * (s + 1) * 0.5;
+    tree.add(segMesh);
+    currY += segHeight * 0.95;
+    currRadius = topRadius;
+  }
+
+  // Multi-tier lush foliage canopy (fluffy low-poly cloud/canopy layers)
+  const foliageTiers = 3;
+  const baseFoliageRadius = 1.35 + rnd() * 0.45;
+  for (let t = 0; t < foliageTiers; t++) {
+    const tierGroup = new THREE.Group();
+    const tierRadius = baseFoliageRadius * (1.0 - t * 0.22);
+    const clusterCount = 4 + t;
+
+    // Sub-cluster spheres forming organic stylized canopy
+    for (let c = 0; c < clusterCount; c++) {
+      const ang = (c / clusterCount) * Math.PI * 2 + rnd() * 0.3;
+      const distFromCenter = tierRadius * (0.35 + rnd() * 0.25);
+      const puffGeo = new THREE.DodecahedronGeometry(tierRadius * (0.55 + rnd() * 0.25), 1);
+      const puff = new THREE.Mesh(puffGeo, leafMat);
+      puff.position.set(
+        Math.cos(ang) * distFromCenter,
+        (rnd() - 0.5) * 0.2,
+        Math.sin(ang) * distFromCenter
+      );
+      puff.rotation.set(rnd() * Math.PI, rnd() * Math.PI, rnd() * Math.PI);
+      tierGroup.add(puff);
+    }
+
+    // Central puff for each tier
+    const centerPuff = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(tierRadius * 0.75, 1),
+      leafMat
+    );
+    tierGroup.add(centerPuff);
+
+    tierGroup.position.set(
+      trunkSegments * leanAngleX * 0.5 + (rnd() - 0.5) * 0.1,
+      currY + t * 0.75,
+      trunkSegments * leanAngleZ * 0.5 + (rnd() - 0.5) * 0.1
+    );
+    tree.add(tierGroup);
+  }
+
+  return tree;
+}
+
 // Visual-only decoration (cây, đá) – tất định, không dùng RNG của simulation
 function addDecor(night) {
   let s = 99 + night;
   const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.9 });
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x24493f, roughness: 0.85 });
-  const rockMat = new THREE.MeshStandardMaterial({ color: 0x5b5f6e, roughness: 0.95 });
+  const trunkMat = new THREE.MeshStandardMaterial({
+    color: 0x5a3d24,
+    roughness: 0.9,
+    metalness: 0.05
+  });
+  const leafMat = new THREE.MeshStandardMaterial({
+    color: 0x244f43,
+    roughness: 0.75,
+    metalness: 0.05,
+    flatShading: true
+  });
+  const rockMat = new THREE.MeshStandardMaterial({
+    color: 0x5b5f6e,
+    roughness: 0.95,
+    flatShading: true
+  });
+
   const centers = night === 2 ? [[0, 0, 28], [70, 0, 28]] : [[0, 0, night === 3 ? 45 : 40]];
   for (const [cx, cz, R] of centers) {
     const count = night === 2 ? 14 : 22;
@@ -362,12 +441,9 @@ function addDecor(night) {
       if (night === 2 && x > 24 && x < 46 && Math.abs(z) < 5) continue; // chừa cầu
       const g = new THREE.Group();
       if (rnd() > 0.35) {
-        const h = 2.2 + rnd() * 1.6;
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, h, 8), trunkMat);
-        trunk.position.y = h / 2;
-        const crown = new THREE.Mesh(new THREE.ConeGeometry(1.1 + rnd() * 0.5, 2.4, 8), leafMat);
-        crown.position.y = h + 0.6;
-        g.add(trunk, crown);
+        const h = 2.4 + rnd() * 1.5;
+        const styledTree = createStylizedTree(h, rnd, trunkMat, leafMat);
+        g.add(styledTree);
       } else {
         const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6 + rnd() * 0.7, 0), rockMat);
         rock.position.y = 0.3;
