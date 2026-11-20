@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Đảo Đèn Lồng — 3D Game</title>
+  <title>Đảo Đèn Lồng — 3D Game (Ba Hòn Đảo)</title>
   <style>
     * {
       box-sizing: border-box;
@@ -15,16 +15,16 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #090a10;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      color: #fff;
+      background: #0E1430;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #F5F1E6;
     }
     #canvas3d {
       width: 100%;
       height: 100%;
       display: block;
     }
-    /* HUD Overlays */
+    /* HUD Overlay */
     #hud {
       position: absolute;
       top: 0;
@@ -35,177 +35,295 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding: 24px;
+      padding: 20px 24px;
     }
     .hud-header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
+      width: 100%;
     }
-    .stat-card {
-      background: rgba(14, 18, 32, 0.75);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 180, 70, 0.25);
+    .hud-card {
+      background: rgba(14, 20, 48, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(242, 193, 78, 0.3);
       border-radius: 14px;
-      padding: 12px 20px;
+      padding: 10px 18px;
       display: flex;
       gap: 16px;
       align-items: center;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
-    .stat-item {
+    .hud-stat {
       display: flex;
       flex-direction: column;
       align-items: center;
     }
-    .stat-label {
+    .hud-label {
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 1px;
-      color: #f7ba52;
+      color: #F2C14E;
       margin-bottom: 2px;
     }
-    .stat-val {
-      font-size: 22px;
+    .hud-val {
+      font-size: 20px;
       font-weight: bold;
-      color: #fff;
-      text-shadow: 0 0 10px rgba(255,180,70,0.5);
+      color: #F5F1E6;
+      text-shadow: 0 0 10px rgba(255, 179, 71, 0.6);
     }
+    /* Flames */
     .flames-container {
       display: flex;
       gap: 6px;
-      font-size: 24px;
+      font-size: 22px;
     }
     .flame-icon.active {
-      filter: drop-shadow(0 0 8px #ff7b00);
+      filter: drop-shadow(0 0 8px #FFB347);
     }
     .flame-icon.lost {
-      filter: grayscale(1) opacity(0.3);
+      filter: grayscale(1) opacity(0.25);
     }
-    .lanterns-status {
+    /* Timer */
+    #timer-card.urgent {
+      border-color: #FF5A5F;
+      animation: pulseUrgent 1s infinite alternate;
+    }
+    #timer-card.urgent #time-val {
+      color: #FF5A5F;
+      text-shadow: 0 0 12px rgba(255, 90, 95, 0.8);
+    }
+    @keyframes pulseUrgent {
+      from { transform: scale(1); }
+      to { transform: scale(1.05); }
+    }
+    /* Mote inventory bar (10 slots) */
+    .hud-bottom-center {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
-      gap: 10px;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
     }
-    .lantern-badge {
-      width: 36px;
-      height: 36px;
+    .mote-bar {
+      display: flex;
+      gap: 6px;
+      background: rgba(14, 20, 48, 0.8);
+      backdrop-filter: blur(10px);
+      padding: 8px 14px;
+      border-radius: 24px;
+      border: 1px solid rgba(242, 193, 78, 0.35);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .mote-slot {
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
+      border: 1px solid rgba(255, 246, 194, 0.25);
+      background: rgba(20, 25, 45, 0.6);
+      transition: all 0.25s ease;
+    }
+    .mote-slot.filled {
+      background: #FFF6C2;
+      border-color: #FFE58A;
+      box-shadow: 0 0 10px #FFE58A;
+      transform: scale(1.1);
+    }
+    /* Action Cooldowns (Bottom-Right) */
+    .hud-bottom-right {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
       display: flex;
+      gap: 14px;
+    }
+    .action-btn-ui {
+      width: 60px;
+      height: 60px;
+      border-radius: 14px;
+      background: rgba(14, 20, 48, 0.85);
+      border: 2px solid rgba(242, 193, 78, 0.4);
+      display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .action-btn-ui .key-badge {
+      font-size: 10px;
       font-weight: bold;
+      color: #F2C14E;
+    }
+    .action-btn-ui .action-name {
+      font-size: 11px;
+      font-weight: bold;
+      color: #fff;
+    }
+    .action-btn-ui .cd-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 0%;
+      background: rgba(0, 0, 0, 0.65);
+      transition: height 0.05s linear;
+    }
+    /* Charm Active Banner */
+    #charm-badge {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, #C8102E, #8A0B20);
+      border: 1px solid #F2C14E;
+      padding: 4px 14px;
+      border-radius: 20px;
       font-size: 12px;
-      border: 2px solid rgba(255, 190, 80, 0.3);
-      background: rgba(20, 20, 35, 0.8);
-      color: #888;
-      transition: all 0.3s ease;
+      font-weight: bold;
+      color: #FFF;
+      box-shadow: 0 0 12px #C8102E;
+      margin-bottom: 4px;
     }
-    .lantern-badge.lit {
-      border-color: #ffaa00;
-      background: #ff8800;
-      color: #1a0800;
-      box-shadow: 0 0 16px #ff9900;
+    /* Wind Alert */
+    #wind-alert {
+      display: none;
+      position: absolute;
+      top: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(143, 163, 184, 0.9);
+      color: #0E1430;
+      padding: 6px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      font-size: 14px;
+      box-shadow: 0 0 20px rgba(143, 163, 184, 0.8);
+      animation: windPulse 0.5s infinite alternate;
     }
-    .hud-controls-card {
+    @keyframes windPulse {
+      from { opacity: 0.7; transform: translateX(-50%) scale(0.98); }
+      to { opacity: 1; transform: translateX(-50%) scale(1.02); }
+    }
+    /* Prompt near lantern */
+    #interact-prompt {
+      position: absolute;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 179, 71, 0.95);
+      color: #0E1430;
+      padding: 6px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 14px;
+      display: none;
+      box-shadow: 0 0 15px rgba(255, 179, 71, 0.8);
+    }
+    /* Controls card */
+    .controls-hint {
       position: absolute;
       bottom: 24px;
       left: 24px;
-      background: rgba(14, 18, 32, 0.7);
+      background: rgba(14, 20, 48, 0.75);
       backdrop-filter: blur(8px);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 12px;
-      padding: 12px 18px;
-      font-size: 13px;
-      line-height: 1.6;
-      color: #ddd;
+      padding: 10px 14px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #ccc;
     }
-    .hud-controls-card kbd {
+    .controls-hint kbd {
       background: rgba(255, 255, 255, 0.15);
-      padding: 2px 6px;
+      padding: 1px 5px;
       border-radius: 4px;
       font-family: monospace;
-      color: #ffca58;
-      font-weight: bold;
+      color: #F2C14E;
     }
-    /* Notification banner */
-    #banner {
-      position: absolute;
-      top: 80px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255, 140, 0, 0.9);
-      color: #fff;
-      padding: 8px 24px;
-      border-radius: 30px;
-      font-weight: bold;
-      letter-spacing: 0.5px;
-      opacity: 0;
-      transition: opacity 0.4s ease;
-      box-shadow: 0 0 20px rgba(255, 140, 0, 0.6);
-      pointer-events: none;
-    }
-    /* Modal Win / Defeat */
-    #modal-overlay {
+    /* Modals */
+    .modal-backdrop {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(7, 9, 18, 0.85);
-      backdrop-filter: blur(12px);
+      background: rgba(14, 20, 48, 0.85);
+      backdrop-filter: blur(14px);
       display: none;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      pointer-events: auto;
       z-index: 100;
+      pointer-events: auto;
     }
-    .modal-box {
-      background: linear-gradient(135deg, rgba(25, 30, 55, 0.95), rgba(15, 18, 35, 0.95));
-      border: 2px solid rgba(255, 180, 50, 0.5);
+    .modal-content {
+      background: linear-gradient(135deg, rgba(27, 35, 80, 0.95), rgba(14, 20, 48, 0.98));
+      border: 2px solid #F2C14E;
       border-radius: 20px;
-      padding: 40px;
+      padding: 36px 44px;
       text-align: center;
-      max-width: 480px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+      max-width: 520px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.8);
     }
     .modal-title {
-      font-size: 32px;
+      font-size: 28px;
       margin-bottom: 12px;
-      color: #ffb834;
-      text-shadow: 0 0 20px rgba(255, 180, 50, 0.6);
+      color: #F2C14E;
+      text-shadow: 0 0 15px rgba(242, 193, 78, 0.6);
     }
-    .modal-desc {
-      font-size: 16px;
-      color: #ccc;
+    .modal-story {
+      font-size: 15px;
+      color: #E8E2D0;
+      line-height: 1.6;
       margin-bottom: 24px;
-      line-height: 1.5;
+      font-style: italic;
     }
-    .modal-score {
-      font-size: 20px;
-      margin-bottom: 30px;
-      color: #fff;
+    .modal-actions {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
     }
-    .modal-score span {
-      font-size: 32px;
-      font-weight: bold;
-      color: #ffca42;
-    }
-    .btn-restart {
-      background: linear-gradient(135deg, #ff8c00, #ff5500);
+    .btn-primary {
+      background: linear-gradient(135deg, #FFB347, #FF7B00);
       border: none;
-      color: #fff;
-      font-size: 16px;
+      color: #0E1430;
       font-weight: bold;
-      padding: 14px 36px;
+      font-size: 15px;
+      padding: 12px 28px;
       border-radius: 30px;
       cursor: pointer;
-      box-shadow: 0 6px 20px rgba(255, 100, 0, 0.5);
+      box-shadow: 0 6px 20px rgba(255, 179, 71, 0.5);
       transition: all 0.2s;
     }
-    .btn-restart:hover {
+    .btn-primary:hover {
       transform: scale(1.05);
-      box-shadow: 0 8px 30px rgba(255, 140, 0, 0.8);
+      box-shadow: 0 8px 25px rgba(255, 179, 71, 0.8);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      font-weight: bold;
+      font-size: 14px;
+      padding: 12px 24px;
+      border-radius: 30px;
+      cursor: pointer;
+    }
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      font-size: 14px;
+      color: #ddd;
+    }
+    .settings-row input[type="range"] {
+      width: 160px;
     }
   </style>
 </head>
@@ -213,63 +331,134 @@
   <canvas id="canvas3d"></canvas>
 
   <div id="hud">
+    <!-- Top Header -->
     <div class="hud-header">
-      <!-- Flames / Health & Score -->
-      <div class="stat-card">
-        <div class="stat-item">
-          <div class="stat-label">Ngọn lửa (Máu)</div>
+      <!-- Flames & Island Info -->
+      <div class="hud-card">
+        <div class="hud-stat">
+          <div class="hud-label" id="island-title">Đêm 1: Đảo Bến</div>
           <div class="flames-container" id="flames-container">
             <span class="flame-icon active">🔥</span>
             <span class="flame-icon active">🔥</span>
             <span class="flame-icon active">🔥</span>
           </div>
         </div>
-        <div class="stat-item">
-          <div class="stat-label">Đom đóm mang theo</div>
-          <div class="stat-val" id="carried-val">0 / 10</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">Điểm số</div>
-          <div class="stat-val" id="score-val">0</div>
+      </div>
+
+      <!-- Time Center -->
+      <div class="hud-card" id="timer-card">
+        <div class="hud-stat">
+          <div class="hud-label">Thời gian còn lại</div>
+          <div class="hud-val" id="time-val">05:00</div>
         </div>
       </div>
 
-      <!-- Time & Lanterns -->
-      <div class="stat-card">
-        <div class="stat-item">
-          <div class="stat-label">Thời gian Đêm 1</div>
-          <div class="stat-val" id="time-val">05:00</div>
+      <!-- Lanterns & Score -->
+      <div class="hud-card">
+        <div class="hud-stat" style="margin-right: 14px;">
+          <div class="hud-label">Đèn Lớn</div>
+          <div class="hud-val" id="lanterns-val">0 / 5</div>
         </div>
-        <div class="stat-item">
-          <div class="stat-label">5 Đèn Lồng Lớn</div>
-          <div class="lanterns-status" id="lanterns-list">
-            <div class="lantern-badge" id="badge-L1">L1</div>
-            <div class="lantern-badge" id="badge-L2">L2</div>
-            <div class="lantern-badge" id="badge-L3">L3</div>
-            <div class="lantern-badge" id="badge-L4">L4</div>
-            <div class="lantern-badge" id="badge-L5">L5</div>
-          </div>
+        <div class="hud-stat">
+          <div class="hud-label">Tổng Điểm</div>
+          <div class="hud-val" id="score-val">0</div>
         </div>
       </div>
     </div>
 
-    <div id="banner">Đã thắp sáng Đèn Lồng!</div>
+    <!-- Wind Alert -->
+    <div id="wind-alert">⚠️ Gió Mạnh Đang Thổi Tới!</div>
 
-    <div class="hud-controls-card">
-      <div><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / Mũi tên: Di chuyển</div>
-      <div><kbd>E</kbd>: Nạp đom đóm thắp Đèn Lồng</div>
-      <div><kbd>Q</kbd>: Tỏa sáng (Pulse) xua Bóng Mực (-1 đom đóm)</div>
-      <div><kbd>Chuột</kbd>: Xoay camera 3D</div>
-      <div><kbd>R</kbd>: Chơi lại</div>
+    <!-- Interact Prompt -->
+    <div id="interact-prompt">Nhấn [E] để Nạp Đom Đóm (<span id="prompt-deposit">0/10</span>)</div>
+
+    <!-- Bottom Center: Mote Inventory Bar -->
+    <div class="hud-bottom-center">
+      <div id="charm-badge">⚡ BÙA GIÓ: Tốc độ x1.2 + Lướt 0s Hồi Chiêu (<span id="charm-timer">10s</span>)</div>
+      <div class="mote-bar" id="mote-bar">
+        <div class="mote-slot"></div>
+        <div class="mote-slot"></div>
+        <div class="mote-slot"></div>
+        <div class="mote-slot"></div>
+        <div class="mote-slot"></div>
+        <div class="mote-slot"></div>
+        <div class="mote-slot"></div>
+        <div class="mote-slot"></div>
+        <div class="mote-slot"></div>
+        <div class="mote-slot"></div>
+      </div>
+    </div>
+
+    <!-- Bottom Right: Cooldowns -->
+    <div class="hud-bottom-right">
+      <div class="action-btn-ui" id="btn-dash">
+        <span class="key-badge">SHIFT / F</span>
+        <span class="action-name">LƯỚT</span>
+        <div class="cd-overlay" id="cd-dash"></div>
+      </div>
+      <div class="action-btn-ui" id="btn-pulse">
+        <span class="key-badge">Q</span>
+        <span class="action-name">TỎA SÁNG</span>
+        <div class="cd-overlay" id="cd-pulse"></div>
+      </div>
+    </div>
+
+    <!-- Bottom Left: Controls -->
+    <div class="controls-hint">
+      <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>: Di chuyển · <kbd>Space</kbd>: Nhảy</div>
+      <div><kbd>Shift</kbd>/<kbd>F</kbd>: Lướt · <kbd>Q</kbd>: Tỏa Sáng (3 đom đóm)</div>
+      <div><kbd>E</kbd>: Nạp đèn · <kbd>Esc</kbd>/<kbd>P</kbd>: Tạm dừng</div>
     </div>
   </div>
 
-  <div id="modal-overlay">
-    <div class="modal-box">
-      <div class="modal-title" id="modal-title">CHIẾN THẮNG!</div>
-      <div class="modal-desc" id="modal-desc">Bạn đã thắp sáng toàn bộ 5 Đèn Lồng Lớn trên Đảo Bến, xua tan sương đen!</div>
-      <div class="modal-score">Tổng điểm: <span id="final-score">0</span></div>
-      <button class="btn-restart" id="btn-restart" onclick="restartGame()">Chơi lại</button>
+  <!-- Intro Modal -->
+  <div class="modal-backdrop" id="modal-intro">
+    <div class="modal-content">
+      <div class="modal-title" id="intro-title">ĐÊM 1 — ĐẢO BẾN</div>
+      <div class="modal-story" id="intro-story">"Mây con, hãy mang ánh sáng đom đóm về thắp lại 5 ngọn Đèn Lồng Lớn. Hãy cẩn trọng trước lũ Bóng Mực trong sương đen!" — Ông Đăng.</div>
+      <button class="btn-primary" onclick="startNight()">Bắt đầu Đêm</button>
+    </div>
+  </div>
+
+  <!-- Victory / Night Clear Modal -->
+  <div class="modal-backdrop" id="modal-victory">
+    <div class="modal-content">
+      <div class="modal-title" id="victory-title">CHIẾN THẮNG ĐÊM 1!</div>
+      <div class="modal-story" id="victory-story">Ánh sáng đã quay trở lại xua tan màn sương đen bao phủ hòn đảo!</div>
+      <div style="font-size: 22px; margin-bottom: 20px;">Điểm đạt được: <span id="victory-score" style="color: #F2C14E; font-weight: bold;">0</span></div>
+      <div class="modal-actions">
+        <button class="btn-primary" id="btn-next-night" onclick="nextNight()">Đêm Tiếp Theo ➔</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Defeat Modal -->
+  <div class="modal-backdrop" id="modal-defeat">
+    <div class="modal-content">
+      <div class="modal-title" style="color: #FF5A5F;">THẤT BẠI!</div>
+      <div class="modal-story" id="defeat-story">Mây đã bị Bóng Mực dập tắt hết ngọn lửa hy vọng...</div>
+      <button class="btn-primary" onclick="restartCurrentNight()">Chơi Lại Đêm Này</button>
+    </div>
+  </div>
+
+  <!-- Pause / Settings Modal -->
+  <div class="modal-backdrop" id="modal-pause">
+    <div class="modal-content">
+      <div class="modal-title">TẠM DỪNG</div>
+      <div style="margin: 20px 0;">
+        <div class="settings-row">
+          <span>Âm lượng âm thanh:</span>
+          <input type="range" id="vol-slider" min="0" max="1" step="0.05" value="0.8" oninput="setVolume(this.value)">
+        </div>
+        <div class="settings-row">
+          <span>Độ nhạy chuột:</span>
+          <input type="range" id="sens-slider" min="0.1" max="1.5" step="0.05" value="0.5" oninput="setMouseSens(this.value)">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-primary" onclick="togglePause()">Tiếp Tục</button>
+        <button class="btn-secondary" onclick="restartCurrentNight()">Chơi Lại Đêm</button>
+      </div>
     </div>
   </div>
 

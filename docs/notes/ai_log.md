@@ -22,8 +22,18 @@
 - Ước tính token sử dụng: ~4,000 tokens.
 
 ### Bước 2.3: Kiểm thử tự động, Kiểm tra không hồi quy & Đo hiệu năng
-- Cập nhật bộ test chống hồi quy Phase 1 `tests/test_simulation.js` với số liệu chuẩn hóa mới -> Đạt 100% (6/6 tests).
-- Xây dựng bộ test tính năng mới Phase 2 `tests/test_phase2.js` (Dash, Nhảy, Rơi đảo, Bùa Gió, Gió Lạc, Pause) -> Đạt 100% (6/6 tests).
-- Benchmark 1 Đêm đầy đủ (21.600 ticks) tại `tests/benchmark_perf.js` hoàn thành trong **0.093 giây** (vượt xa yêu cầu DoD ≤ 30.0 giây, nhanh gấp hơn 300 lần).
-- Sinh các file kịch bản headless mới và bằng chứng JSONL tại `docs/proof/proof_dash.jsonl`, `docs/proof/proof_charm.jsonl`, `docs/proof/proof_drifter.jsonl`.
+- Cập nhật bộ test chống hồi quy Phase 1 `tests/test_simulation.js` -> 6/6 tests pass.
+- Xây dựng bộ test tính năng mới Phase 2 `tests/test_phase2.js` -> 6/6 tests pass.
+- Benchmark 21.600 ticks tại `tests/benchmark_perf.js` hoàn thành trong 0.093 giây (đạt chuẩn ≤ 30s).
+- Sinh kịch bản và bằng chứng headless tại `docs/proof/proof_dash.jsonl`, `docs/proof/proof_charm.jsonl`, `docs/proof/proof_drifter.jsonl`.
 - Ước tính token sử dụng: ~3,500 tokens.
+
+### Bước 2.4: Nâng cấp Giao diện 3D (Three.js), HUD cao cấp & Chuỗi 3 Đêm
+- Áp dụng bảng màu chuẩn hóa bắt buộc (bầu trời `#0E1430`, đom đóm `#FFF6C2`, Bóng Mực `#120A1A`, Mây `#E8E2D0` với khăn đỏ `#C8102E`, viền vàng `#F2C14E`).
+- Xây dựng 3 bản đồ 3D chuyển đổi mượt mà:
+  - Đêm 1: Đảo Bến (r=40m).
+  - Đêm 2: Đảo Cau (2 đảo r=28m, cầu tre, bục nhảy năng lượng, Bùa Gió, Gió Lạc).
+  - Đêm 3: Đảo Chuông (3 tầng địa hình giật cấp Y=0, Y=3, Y=6, tháp chuông đồng cổ kính, bục nhảy, cảnh báo gió mạnh).
+- Nâng cấp HUD: Thanh 10 ô đom đóm trực quan, biểu tượng hồi chiêu Lướt & Tỏa Sáng kèm overlay, gợi ý nạp đèn gần nhất, cảnh báo Bùa Gió.
+- Hệ thống Menu chuỗi 3 Đêm: Giới thiệu cốt truyện lời Ông Đăng, chuyển đêm khi thắng, màn hình Bình Minh khi thắng Đêm 3, Menu tạm dừng (Esc/P) kèm cài đặt âm lượng & độ nhạy chuột lưu vào localStorage.
+- Ước tính token sử dụng: ~4,500 tokens.
