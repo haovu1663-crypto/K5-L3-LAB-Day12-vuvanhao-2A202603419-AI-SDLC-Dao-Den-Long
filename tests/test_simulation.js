@@ -33,7 +33,9 @@ function testMotePickup() {
 
   const events = sim.step();
   assert.strictEqual(sim.player.carried, 1);
-  assert.strictEqual(sim.score, 10);
+  // Ticket-03 [THAY THẾ]: Điểm mới v1.2 bỏ thưởng điểm khi nhặt đom đóm (+10 cũ bị hủy),
+  // chỉ thưởng +5 điểm khi nạp vào đèn (thắp mới/châm dầu)
+  assert.strictEqual(sim.score, 0);
   assert.strictEqual(events.length, 1);
   assert.strictEqual(events[0].name, 'mote_picked');
   console.log('✓ Mote pickup test passed!');
@@ -118,9 +120,9 @@ function testShadeHitPlayer() {
   console.log('✓ Shade attack test passed!');
 }
 
-// Test 6: Win condition
+// Test 6: Win condition (Ticket-03 [THAY THẾ]: Không còn thắng sớm all_lit, thắng khi hết giờ dawn_survived nếu >= 60% đèn sáng)
 function testWinCondition() {
-  console.log('Testing win condition on 5 lanterns...');
+  console.log('Testing win condition (Contract v1.2: dawn_survived when time expires and >= 60% lanterns lit)...');
   const sim = new Simulation({ seed: 42, night: 1 });
   sim.applyScenario({
     lanterns: [
@@ -138,12 +140,21 @@ function testWinCondition() {
   sim.setInput({ interact: true });
   const events = sim.step();
 
-  const winEv = events.find((e) => e.name === 'game_over');
-  assert.ok(winEv, 'game_over event must be emitted');
+  // Ticket-03: Thắp đủ đèn KHÔNG kết thúc game ngay
+  const earlyWinEv = events.find((e) => e.name === 'game_over');
+  assert.strictEqual(earlyWinEv, undefined, 'Lighting all lanterns must NOT cause early game_over');
+  assert.strictEqual(sim.state, 'playing', 'Game must stay playing until dawn');
+  assert.strictEqual(sim.lanterns.every(l => l.lit), true, 'All 5 lanterns are lit');
+
+  // Fast forward to dawn (1 tick before end)
+  sim.time_left_s = 1 / 60;
+  const dawnEvents = sim.step();
+  const winEv = dawnEvents.find((e) => e.name === 'game_over');
+  assert.ok(winEv, 'game_over event must be emitted at dawn');
   assert.strictEqual(winEv.data.result, 'won');
-  assert.strictEqual(winEv.data.reason, 'all_lit');
+  assert.strictEqual(winEv.data.reason, 'dawn_survived');
   assert.strictEqual(sim.state, 'won');
-  console.log('✓ Win condition test passed!');
+  console.log('✓ Win condition (dawn_survived) test passed!');
 }
 
 testDeterminism();

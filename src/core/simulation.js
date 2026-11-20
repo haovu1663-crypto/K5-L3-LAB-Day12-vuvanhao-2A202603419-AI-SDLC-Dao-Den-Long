@@ -4,6 +4,10 @@ export function round3(val) {
   return Number(Number(val).toFixed(3));
 }
 
+export function round1(val) {
+  return Number(Number(val).toFixed(1));
+}
+
 export function dist2D(p1, p2) {
   const dx = p1[0] - p2[0];
   const dz = p1[2] - p2[2];
@@ -20,7 +24,15 @@ export function dist3D(p1, p2) {
 export const DEFAULT_TUNING = {
   player_speed: 6.0,
   carry_capacity: 10,
+  capacity_max: 20,
   lantern_cost: 10,
+  relight_cost: 5,
+  fuel_max: 100,
+  fuel_decay_per_s: 1.0,
+  fuel_per_mote: 10,
+  low_fuel_threshold: 30,
+  drain_per_s: 5,
+  win_ratio: 0.6,
   lantern_count_night1: 5,
   lantern_count_night2: 6,
   lantern_count_night3: 7,
@@ -60,16 +72,18 @@ export const DEFAULT_TUNING = {
   drifter_idle_speed: 2.0,
   drifter_detect_radius: 15.0,
   drifter_flee_ticks: 240,
-  night1_duration_s: 300,
-  night2_duration_s: 330,
-  night3_duration_s: 360,
+  night1_duration_s: 240,
+  night2_duration_s: 270,
+  night3_duration_s: 300,
   flames: 3,
   score: {
-    per_mote: 10,
-    per_lantern: 100,
+    per_mote: 5,
+    per_lantern_first: 100,
+    per_lantern_relight: 40,
     per_stun: 5,
-    per_second_left: 2,
-    per_flame_left: 50,
+    per_stun_drain: 15,
+    dawn_per_flame: 50,
+    dawn_per_lit_lantern: 50,
   },
 };
 
@@ -86,11 +100,11 @@ export class Simulation {
     this.score = 0;
 
     const durations = {
-      1: this.tuning.night1_duration_s || 300,
-      2: this.tuning.night2_duration_s || 330,
-      3: this.tuning.night3_duration_s || 360,
+      1: this.tuning.night1_duration_s || 240,
+      2: this.tuning.night2_duration_s || 270,
+      3: this.tuning.night3_duration_s || 300,
     };
-    this.time_left_s = durations[this.night] || 300;
+    this.time_left_s = durations[this.night] || 240;
 
     // Player state
     this.player = {
@@ -100,6 +114,7 @@ export class Simulation {
       grounded: true,
       carried: 0,
       flames: this.tuning.flames || 3,
+      successful_lights: 0,
       invuln_ticks: 0,
       dash_cd_ticks: 0,
       dash_active_ticks: 0,
@@ -129,14 +144,10 @@ export class Simulation {
     this.nextShadeId = 1;
     this.nextDrifterId = 1;
 
-    // Spawn point configurations
     this.moteSpawnPoints = [];
     this.shadeSpawnPoints = [];
-
-    // Pending events for this tick
     this.pendingEvents = [];
 
-    // Current & previous input frame
     this.currentInput = {
       move: [0, 0],
       cam_yaw_deg: 0,
@@ -148,22 +159,25 @@ export class Simulation {
     };
     this.prevInput = { ...this.currentInput };
 
-    // Setup map according to Night
     this.initMap(this.night);
+  }
+
+  getCapacity() {
+    const base = this.tuning.carry_capacity || 10;
+    const maxCap = this.tuning.capacity_max || 20;
+    return Math.min(maxCap, base + 2 * (this.player.successful_lights || 0));
   }
 
   initMap(night) {
     if (night === 1) {
-      // Đêm 1 — Đảo Bến (r = 40m)
       this.lanterns = [
-        { id: 'L1', pos: [0, 0, 25], lit: false, deposited: 0 },
-        { id: 'L2', pos: [23.8, 0, 7.7], lit: false, deposited: 0 },
-        { id: 'L3', pos: [14.7, 0, -20.2], lit: false, deposited: 0 },
-        { id: 'L4', pos: [-14.7, 0, -20.2], lit: false, deposited: 0 },
-        { id: 'L5', pos: [-23.8, 0, 7.7], lit: false, deposited: 0 },
+        { id: 'L1', pos: [0, 0, 25], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L2', pos: [23.8, 0, 7.7], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L3', pos: [14.7, 0, -20.2], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L4', pos: [-14.7, 0, -20.2], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L5', pos: [-23.8, 0, 7.7], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
       ];
 
-      // Mote spawn points (8 on r=12, 16 on r=33)
       this.moteSpawnPoints = [];
       for (let i = 0; i < 8; i++) {
         const rad = (i * 45 * Math.PI) / 180;
@@ -174,7 +188,6 @@ export class Simulation {
         this.moteSpawnPoints.push([round3(33 * Math.cos(rad)), 0, round3(33 * Math.sin(rad))]);
       }
 
-      // Shade spawn points (12 on r=37m)
       this.shadeSpawnPoints = [];
       for (let i = 0; i < 12; i++) {
         const deg = 15 + i * 30;
@@ -182,7 +195,6 @@ export class Simulation {
         this.shadeSpawnPoints.push([round3(37 * Math.cos(rad)), 0, round3(37 * Math.sin(rad))]);
       }
 
-      // Initial 20 motes
       for (let i = 0; i < 20 && i < this.moteSpawnPoints.length; i++) {
         const p = this.moteSpawnPoints[i];
         this.motes.push({
@@ -194,17 +206,15 @@ export class Simulation {
         });
       }
     } else if (night === 2) {
-      // Đêm 2 — Đảo Cau (2 islands r=28m, Bridge x in [26, 44])
       this.lanterns = [
-        { id: 'L1', pos: [0, 0, 20], lit: false, deposited: 0 },
-        { id: 'L2', pos: [17, 0, -10], lit: false, deposited: 0 },
-        { id: 'L3', pos: [-17, 0, -10], lit: false, deposited: 0 },
-        { id: 'L4', pos: [70, 0, 20], lit: false, deposited: 0 },
-        { id: 'L5', pos: [87, 0, -10], lit: false, deposited: 0 },
-        { id: 'L6', pos: [53, 0, -10], lit: false, deposited: 0 },
+        { id: 'L1', pos: [0, 0, 20], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L2', pos: [17, 0, -10], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L3', pos: [-17, 0, -10], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L4', pos: [70, 0, 20], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L5', pos: [87, 0, -10], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L6', pos: [53, 0, -10], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
       ];
 
-      // Mote spawn points (Island A & B)
       this.moteSpawnPoints = [];
       [ [0, 0], [70, 0] ].forEach(([cx, cz]) => {
         [0, 90, 180, 270].forEach((deg) => {
@@ -217,7 +227,6 @@ export class Simulation {
         }
       });
 
-      // Shade spawn points (8 per island on r=26m)
       this.shadeSpawnPoints = [];
       [ [0, 0], [70, 0] ].forEach(([cx, cz]) => {
         for (let i = 0; i < 8; i++) {
@@ -227,7 +236,6 @@ export class Simulation {
         }
       });
 
-      // Initial 20 motes
       for (let i = 0; i < 20 && i < this.moteSpawnPoints.length; i++) {
         const p = this.moteSpawnPoints[i];
         this.motes.push({
@@ -239,23 +247,20 @@ export class Simulation {
         });
       }
 
-      // Wind Charm C1 at (35, 0, 0)
       this.charms = [
         { id: 'C1', pos: [35, 0, 0], available: true, respawn_ticks: 0 },
       ];
     } else if (night === 3) {
-      // Đêm 3 — Đảo Chuông (3 tiers)
       this.lanterns = [
-        { id: 'L1', pos: [0, 6, 6], lit: false, deposited: 0 },
-        { id: 'L2', pos: [18, 3, 10], lit: false, deposited: 0 },
-        { id: 'L3', pos: [-18, 3, 10], lit: false, deposited: 0 },
-        { id: 'L4', pos: [35, 0, -10], lit: false, deposited: 0 },
-        { id: 'L5', pos: [-35, 0, -10], lit: false, deposited: 0 },
-        { id: 'L6', pos: [20, 0, -35], lit: false, deposited: 0 },
-        { id: 'L7', pos: [-20, 0, -35], lit: false, deposited: 0 },
+        { id: 'L1', pos: [0, 6, 6], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L2', pos: [18, 3, 10], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L3', pos: [-18, 3, 10], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L4', pos: [35, 0, -10], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L5', pos: [-35, 0, -10], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L6', pos: [20, 0, -35], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
+        { id: 'L7', pos: [-20, 0, -35], lit: false, deposited: 0, fuel_ticks: 0, ever_lit: false, relit_count: 0 },
       ];
 
-      // Mote points: Tier 0 (18), Tier 1 (8), Tier 2 (4) = 30
       this.moteSpawnPoints = [];
       for (let i = 0; i < 18; i++) {
         const rad = (i * 20 * Math.PI) / 180;
@@ -271,14 +276,12 @@ export class Simulation {
         this.moteSpawnPoints.push([round3(5 * Math.cos(rad)), 6, round3(5 * Math.sin(rad))]);
       });
 
-      // Shade spawn points (16 on r=43m)
       this.shadeSpawnPoints = [];
       for (let i = 0; i < 16; i++) {
         const rad = (i * 22.5 * Math.PI) / 180;
         this.shadeSpawnPoints.push([round3(43 * Math.cos(rad)), 0, round3(43 * Math.sin(rad))]);
       }
 
-      // Initial 20 motes
       for (let i = 0; i < 20 && i < this.moteSpawnPoints.length; i++) {
         const p = this.moteSpawnPoints[i];
         this.motes.push({
@@ -290,7 +293,6 @@ export class Simulation {
         });
       }
 
-      // Charms C1 (30,0,25), C2 (-30,0,25)
       this.charms = [
         { id: 'C1', pos: [30, 0, 25], available: true, respawn_ticks: 0 },
         { id: 'C2', pos: [-30, 0, 25], available: true, respawn_ticks: 0 },
@@ -307,16 +309,15 @@ export class Simulation {
       if (dA <= 28) return 0;
       const dB = Math.sqrt((x - 70) * (x - 70) + z * z);
       if (dB <= 28) return 0;
-      if (x >= 26 && x <= 44 && z >= -2 && z <= 2) return 0; // bridge
+      if (x >= 26 && x <= 44 && z >= -2 && z <= 2) return 0;
       return -999;
     } else if (this.night === 3) {
       const d = Math.sqrt(x * x + z * z);
       if (d > 45) return -999;
-      // Tower collision (unclimbable radius 2 at center)
       if (d <= 2.0 && this.player.pos[1] >= 6) return 6;
-      if (d <= 8) return 6; // Tier 2
-      if (d >= 12 && d <= 24 && z > 0) return 3; // Tier 1
-      return 0; // Tier 0
+      if (d <= 8) return 6;
+      if (d >= 12 && d <= 24 && z > 0) return 3;
+      return 0;
     }
     return 0;
   }
@@ -328,6 +329,7 @@ export class Simulation {
       if (scenario.player.pos) this.player.pos = [...scenario.player.pos];
       if (scenario.player.carried !== undefined) this.player.carried = scenario.player.carried;
       if (scenario.player.flames !== undefined) this.player.flames = scenario.player.flames;
+      if (scenario.player.successful_lights !== undefined) this.player.successful_lights = scenario.player.successful_lights;
       if (scenario.player.invuln_ticks !== undefined) this.player.invuln_ticks = scenario.player.invuln_ticks;
       if (scenario.player.dash_cd_ticks !== undefined) this.player.dash_cd_ticks = scenario.player.dash_cd_ticks;
       if (scenario.player.pulse_cd_ticks !== undefined) this.player.pulse_cd_ticks = scenario.player.pulse_cd_ticks;
@@ -341,16 +343,26 @@ export class Simulation {
     if (scenario.lanterns) {
       for (const update of scenario.lanterns) {
         const l = this.lanterns.find((item) => item.id === update.id);
+        const isLit = update.lit !== undefined ? update.lit : (l ? l.lit : false);
+        let fuelVal = update.fuel !== undefined ? update.fuel : (isLit ? 100 : 0);
+
         if (l) {
           if (update.pos) l.pos = [...update.pos];
           if (update.deposited !== undefined) l.deposited = update.deposited;
-          if (update.lit !== undefined) l.lit = update.lit;
+          l.lit = isLit;
+          l.fuel_ticks = Math.round(fuelVal * 60);
+          if (update.ever_lit !== undefined) l.ever_lit = update.ever_lit;
+          else if (isLit) l.ever_lit = true;
+          if (update.relit_count !== undefined) l.relit_count = update.relit_count;
         } else {
           this.lanterns.push({
             id: update.id,
             pos: update.pos ? [...update.pos] : [0, 0, 0],
-            lit: !!update.lit,
+            lit: isLit,
             deposited: update.deposited || 0,
+            fuel_ticks: Math.round(fuelVal * 60),
+            ever_lit: update.ever_lit !== undefined ? update.ever_lit : isLit,
+            relit_count: update.relit_count || 0,
           });
         }
       }
@@ -380,6 +392,8 @@ export class Simulation {
             pos: s.pos ? [...s.pos] : [10, 0, 10],
             state: s.state || 'chase',
             state_ticks_left: s.state_ticks_left || 0,
+            target_lantern_id: s.target_lantern_id || null,
+            drain_ticks: 0,
             push_vel: [0, 0],
             push_ticks_left: 0,
             safe_push_ticks_left: 0,
@@ -418,9 +432,10 @@ export class Simulation {
 
   setInput(newInputFields) {
     this.prevInput = { ...this.currentInput };
+    const fields = newInputFields && newInputFields.input ? newInputFields.input : newInputFields;
     this.currentInput = {
       ...this.currentInput,
-      ...newInputFields,
+      ...fields,
     };
   }
 
@@ -453,22 +468,19 @@ export class Simulation {
     this.sim_tick += 1;
     this.time_left_s = Math.max(0, this.time_left_s - dt);
 
-    // --- STEP 2: Decrement counters ---
+    // --- STEP 2: Decrement counters & Deduct Lantern Fuel ---
     if (this.player.dash_cd_ticks > 0) this.player.dash_cd_ticks--;
     if (this.player.pulse_cd_ticks > 0) this.player.pulse_cd_ticks--;
     if (this.player.invuln_ticks > 0) this.player.invuln_ticks--;
     if (this.player.charm_ticks > 0) this.player.charm_ticks--;
     if (this.player.fall_wait_ticks > 0) this.player.fall_wait_ticks--;
 
-    // Shade stunned & recoil counters (decremented in Step 2)
     for (const s of this.shades) {
       if (s.state === 'stunned') {
-        if (s.push_ticks_left > 0) {
-          s.push_ticks_left--;
-        }
+        if (s.push_ticks_left > 0) s.push_ticks_left--;
         if (s.state_ticks_left > 0) {
           s.state_ticks_left--;
-          if (s.state_ticks_left <= 0) s.state = 'chase';
+          if (s.state_ticks_left <= 0) s.state = 'wander'; // Hết choáng thì về wander theo Ticket-03
         }
       } else if (s.state === 'recoil') {
         if (s.state_ticks_left > 0) {
@@ -478,22 +490,60 @@ export class Simulation {
       }
     }
 
-    // TTL for dropped motes
     for (const m of this.motes) {
       if (m.active && m.ttl_ticks !== null && m.ttl_ticks !== undefined) {
         m.ttl_ticks--;
-        if (m.ttl_ticks <= 0) {
-          m.active = false;
-        }
+        if (m.ttl_ticks <= 0) m.active = false;
       }
     }
 
-    // Charm respawn counters
     for (const c of this.charms) {
       if (!c.available) {
         c.respawn_ticks--;
-        if (c.respawn_ticks <= 0) {
-          c.available = true;
+        if (c.respawn_ticks <= 0) c.available = true;
+      }
+    }
+
+    // Deduct lantern fuel: natural decay 1/s (1 tick per step) + draining shades (5 ticks per shade per step)
+    for (const l of this.lanterns) {
+      if (l.lit) {
+        // Natural decay
+        let decayAmount = 1;
+
+        // Drain by shades
+        for (const s of this.shades) {
+          if (s.state === 'drain' && s.target_lantern_id === l.id) {
+            decayAmount += 5;
+            s.drain_ticks = (s.drain_ticks || 0) + 1;
+            // Emit fuel_drain every 60 ticks while draining
+            if (s.drain_ticks % 60 === 1 || s.drain_ticks === 1) {
+              this.pendingEvents.push({
+                type: 'event',
+                tick: this.tick,
+                name: 'fuel_drain',
+                data: {
+                  lantern_id: l.id,
+                  shade_id: s.id,
+                  fuel: round1(Math.max(0, l.fuel_ticks - decayAmount) / 60),
+                },
+              });
+            }
+          }
+        }
+
+        l.fuel_ticks = Math.max(0, l.fuel_ticks - decayAmount);
+
+        // Check if fuel <= 0 immediately after Step 2
+        if (l.fuel_ticks <= 0) {
+          l.lit = false;
+          l.deposited = 0;
+          l.ever_lit = true;
+          this.pendingEvents.push({
+            type: 'event',
+            tick: this.tick,
+            name: 'lantern_out',
+            data: { lantern_id: l.id },
+          });
         }
       }
     }
@@ -506,7 +556,7 @@ export class Simulation {
       this.checkMoteAndCharmPickups();
     }
 
-    // --- STEP 5: Interact with lanterns ---
+    // --- STEP 5: Interact with lanterns (Refuel / Light / Relight) ---
     if (this.player.fall_wait_ticks <= 0) {
       const interactTriggered = this.currentInput.interact && !this.prevInput.interact;
       if (interactTriggered) {
@@ -535,19 +585,16 @@ export class Simulation {
     // --- STEP 10: Spawn motes, Shades, Drifters on schedule ---
     this.handleSpawns();
 
-    // --- STEP 11: Check Win / Loss ---
+    // --- STEP 11: Check Win / Loss (After all updates) ---
     this.checkGameConditions();
 
-    // Save previous input
     this.prevInput = { ...this.currentInput };
-
     return this.pendingEvents;
   }
 
   updatePlayerMovement(dt) {
     if (this.player.fall_wait_ticks > 0) {
       if (this.player.fall_wait_ticks === 1) {
-        // Respawn at (0, 0, 0)
         this.player.pos = [0, 0, 0];
         this.player.vel = [0, 0, 0];
         this.player.grounded = true;
@@ -556,17 +603,15 @@ export class Simulation {
       return;
     }
 
-    // Check Dash trigger
     const dashTriggered = this.currentInput.dash && !this.prevInput.dash;
     const canDash = this.player.charm_ticks > 0 || this.player.dash_cd_ticks <= 0;
 
     if (dashTriggered && canDash && this.player.dash_active_ticks <= 0) {
-      this.player.dash_active_ticks = 12; // 0.2s = 12 ticks
-      this.player.dash_cd_ticks = this.player.charm_ticks > 0 ? 0 : 90; // 1.5s = 90 ticks
+      this.player.dash_active_ticks = 12;
+      this.player.dash_cd_ticks = this.player.charm_ticks > 0 ? 0 : 90;
 
-      // Dash direction
       const [mx, mz] = this.currentInput.move;
-      let len = Math.sqrt(mx * mx + mz * mz);
+      const len = Math.sqrt(mx * mx + mz * mz);
       let dx = this.player.facing_dir[0];
       let dz = this.player.facing_dir[1];
 
@@ -580,31 +625,24 @@ export class Simulation {
       this.pendingEvents.push({ type: 'event', tick: this.tick, name: 'dash', data: {} });
     }
 
-    // Check Jump trigger
     const jumpTriggered = this.currentInput.jump && !this.prevInput.jump;
     if (jumpTriggered && this.player.grounded && this.player.dash_active_ticks <= 0) {
       this.player.vel[1] = this.tuning.jump_velocity || 7.0;
       this.player.grounded = false;
     }
 
-    // Jump pads check (Night 2 and Night 3)
+    // Jump pads check
     if (this.night === 2 && this.player.grounded) {
       if (dist2D(this.player.pos, [20, 0, 18]) <= 1.0) {
-        // Launch to B (70, 0, 0)
         const d = dist2D([20, 0, 18], [70, 0, 0]);
-        const hx = (70 - 20) / d;
-        const hz = (0 - 18) / d;
         this.player.launch_active = true;
-        this.player.launch_vel = [hx * 24.0, 14.0, hz * 24.0];
+        this.player.launch_vel = [((70 - 20) / d) * 24.0, 14.0, ((0 - 18) / d) * 24.0];
         this.player.vel[1] = 14.0;
         this.player.grounded = false;
       } else if (dist2D(this.player.pos, [50, 0, -18]) <= 1.0) {
-        // Launch to A (0, 0, 0)
         const d = dist2D([50, 0, -18], [0, 0, 0]);
-        const hx = (0 - 50) / d;
-        const hz = (0 - (-18)) / d;
         this.player.launch_active = true;
-        this.player.launch_vel = [hx * 24.0, 14.0, hz * 24.0];
+        this.player.launch_vel = [((0 - 50) / d) * 24.0, 14.0, ((0 - (-18)) / d) * 24.0];
         this.player.vel[1] = 14.0;
         this.player.grounded = false;
       }
@@ -617,19 +655,16 @@ export class Simulation {
       }
     }
 
-    // Apply movement
     if (this.player.dash_active_ticks > 0) {
       this.player.dash_active_ticks--;
       this.player.pos[0] = round3(this.player.pos[0] + this.player.dash_vel[0] * dt);
       this.player.pos[2] = round3(this.player.pos[2] + this.player.dash_vel[1] * dt);
-      // Air dash maintains altitude
     } else if (this.player.launch_active) {
       this.player.pos[0] = round3(this.player.pos[0] + this.player.launch_vel[0] * dt);
       this.player.pos[2] = round3(this.player.pos[2] + this.player.launch_vel[2] * dt);
       this.player.vel[1] += (this.tuning.gravity || -20.0) * dt;
       this.player.pos[1] = round3(this.player.pos[1] + this.player.vel[1] * dt);
     } else {
-      // Normal running movement
       const [mx, mz] = this.currentInput.move;
       const len = Math.sqrt(mx * mx + mz * mz);
       const speed = this.player.charm_ticks > 0 ? (this.tuning.charm_speed || 7.2) : (this.tuning.player_speed || 6.0);
@@ -646,21 +681,18 @@ export class Simulation {
         this.player.pos[2] = round3(this.player.pos[2] + wz * speed * dt);
       }
 
-      // Wind push on Night 3
       if (this.wind.active) {
         const wRad = (this.wind.dir_deg * Math.PI) / 180;
         this.player.pos[0] = round3(this.player.pos[0] + Math.cos(wRad) * 2.0 * dt);
         this.player.pos[2] = round3(this.player.pos[2] + Math.sin(wRad) * 2.0 * dt);
       }
 
-      // Vertical gravity & ground check
       if (!this.player.grounded) {
         this.player.vel[1] += (this.tuning.gravity || -20.0) * dt;
         this.player.pos[1] = round3(this.player.pos[1] + this.player.vel[1] * dt);
       }
     }
 
-    // Ground check
     const gh = this.getGroundHeight(this.player.pos[0], this.player.pos[2]);
     if (gh === -999) {
       this.player.grounded = false;
@@ -673,7 +705,6 @@ export class Simulation {
       this.player.grounded = false;
     }
 
-    // Check Fall off island (Y < -10)
     if (this.player.pos[1] < (this.tuning.fall_threshold_y || -10.0)) {
       this.player.flames -= 1;
       const dropped = this.player.carried;
@@ -689,7 +720,7 @@ export class Simulation {
           by: 'fall',
           flames: this.player.flames,
           dropped: dropped,
-          lost: true,
+          lost: this.player.flames <= 0,
         },
       });
     }
@@ -698,9 +729,8 @@ export class Simulation {
   checkMoteAndCharmPickups() {
     const pickupR = this.tuning.pickup_radius || 1.0;
     const pickupH = this.tuning.pickup_height || 1.5;
-    const capacity = this.tuning.carry_capacity || 10;
+    const capacity = this.getCapacity();
 
-    // Pick motes
     for (const m of this.motes) {
       if (!m.active) continue;
       const dXZ = dist2D(this.player.pos, m.pos);
@@ -710,7 +740,7 @@ export class Simulation {
         if (this.player.carried < capacity) {
           m.active = false;
           this.player.carried += 1;
-          this.score += this.tuning.score.per_mote || 10;
+          // Ticket-03 [THAY THẾ]: Nhặt đom đóm không cộng điểm; chỉ cộng khi nạp/châm dầu vào đèn (+5)
 
           this.pendingEvents.push({
             type: 'event',
@@ -722,7 +752,6 @@ export class Simulation {
       }
     }
 
-    // Pick charms
     for (const c of this.charms) {
       if (!c.available) continue;
       const dXZ = dist2D(this.player.pos, c.pos);
@@ -748,28 +777,76 @@ export class Simulation {
 
   handleInteract() {
     const interactR = this.tuning.interact_radius || 2.0;
-    const cost = this.tuning.lantern_cost || 10;
 
-    // Select closest unlit lantern
-    let target = null;
-    let minDist = Infinity;
-
+    // Filter eligible lanterns (unlit, OR lit but fuel < 100)
+    let candidates = [];
     for (const l of this.lanterns) {
-      if (l.lit) continue;
       const d = dist2D(this.player.pos, l.pos);
       if (d <= interactR) {
-        if (d < minDist || (Math.abs(d - minDist) < 0.001 && target && l.id < target.id)) {
-          minDist = d;
-          target = l;
+        if (!l.lit) {
+          candidates.push({ lantern: l, dist: d });
+        } else if (l.fuel_ticks < 6000) {
+          candidates.push({ lantern: l, dist: d });
         }
       }
     }
 
-    if (target && this.player.carried > 0) {
+    if (candidates.length === 0) return;
+
+    // Pick closest, smallest id if tied
+    candidates.sort((a, b) => {
+      if (Math.abs(a.dist - b.dist) > 0.001) return a.dist - b.dist;
+      return a.lantern.id.localeCompare(b.lantern.id);
+    });
+
+    const target = candidates[0].lantern;
+
+    if (this.player.carried <= 0) return;
+
+    if (target.lit) {
+      // Châm dầu (Refuel): used = min(carried, ceil((100 - fuel) / 10))
+      const currentFuel = target.fuel_ticks / 60;
+      const neededMotes = Math.ceil((100 - currentFuel) / 10);
+      const used = Math.min(this.player.carried, neededMotes);
+
+      if (used > 0) {
+        target.fuel_ticks = Math.min(6000, target.fuel_ticks + used * 600);
+        this.player.carried -= used;
+        this.score += used * (this.tuning.score.per_mote || 5);
+
+        // If fuel reaches >= 30, push any shades within 6m
+        if (target.fuel_ticks >= 1800) {
+          for (const s of this.shades) {
+            if (dist2D(s.pos, target.pos) < (this.tuning.safe_radius || 6.0)) {
+              s.safe_push_ticks_left = this.tuning.safe_push_ticks || 30;
+              if (s.state === 'drain' && s.target_lantern_id === target.id) {
+                s.state = 'wander';
+                s.target_lantern_id = null;
+              }
+            }
+          }
+        }
+
+        this.pendingEvents.push({
+          type: 'event',
+          tick: this.tick,
+          name: 'refuel',
+          data: {
+            lantern_id: target.id,
+            amount: used,
+            fuel: round1(target.fuel_ticks / 60),
+          },
+        });
+      }
+    } else {
+      // Thắp mới (10 đom đóm) hoặc Thắp lại (5 đom đóm)
+      const cost = target.ever_lit ? (this.tuning.relight_cost || 5) : (this.tuning.lantern_cost || 10);
       const needed = cost - target.deposited;
       const toDeposit = Math.min(this.player.carried, needed);
+
       target.deposited += toDeposit;
       this.player.carried -= toDeposit;
+      this.score += toDeposit * (this.tuning.score.per_mote || 5);
 
       this.pendingEvents.push({
         type: 'event',
@@ -784,12 +861,27 @@ export class Simulation {
 
       if (target.deposited >= cost) {
         target.lit = true;
-        this.score += this.tuning.score.per_lantern || 100;
+        target.fuel_ticks = 6000; // 100 fuel
+        this.player.successful_lights = (this.player.successful_lights || 0) + 1;
+
+        const isRelight = target.ever_lit;
+        if (isRelight) {
+          target.relit_count = (target.relit_count || 0) + 1;
+          this.score += this.tuning.score.per_lantern_relight || 40;
+        } else {
+          target.ever_lit = true;
+          target.relit_count = 0;
+          this.score += this.tuning.score.per_lantern_first || 100;
+        }
 
         // Push any shade inside safe zone
         for (const s of this.shades) {
           if (dist2D(s.pos, target.pos) < (this.tuning.safe_radius || 6.0)) {
             s.safe_push_ticks_left = this.tuning.safe_push_ticks || 30;
+            if (s.state === 'drain' && s.target_lantern_id === target.id) {
+              s.state = 'wander';
+              s.target_lantern_id = null;
+            }
           }
         }
 
@@ -797,7 +889,10 @@ export class Simulation {
           type: 'event',
           tick: this.tick,
           name: 'lantern_lit',
-          data: { lantern_id: target.id },
+          data: {
+            lantern_id: target.id,
+            relight: isRelight,
+          },
         });
       }
     }
@@ -809,9 +904,8 @@ export class Simulation {
     for (const s of this.shades) {
       if (s.safe_push_ticks_left > 0) {
         s.safe_push_ticks_left--;
-        // Push shade outwards towards safe edge
         for (const l of this.lanterns) {
-          if (l.lit) {
+          if (l.lit && l.fuel_ticks >= 1800) { // Only fuel >= 30 has safe zone
             const d = dist2D(s.pos, l.pos);
             if (d < safeR && d > 0.001) {
               const pushX = (s.pos[0] - l.pos[0]) / d;
@@ -836,15 +930,15 @@ export class Simulation {
     const pulseCenter = [this.player.pos[0], this.player.pos[1] + 0.8, this.player.pos[2]];
     const stunnedIds = [];
 
-    // Target shades
     for (const s of this.shades) {
       const shadeCenter = [s.pos[0], s.pos[1] + 0.8, s.pos[2]];
       if (dist3D(pulseCenter, shadeCenter) <= (this.tuning.pulse_radius || 5.0)) {
+        const wasDrain = s.state === 'drain';
         s.state = 'stunned';
         s.state_ticks_left = this.tuning.pulse_stun_ticks || 120;
         s.push_ticks_left = 15;
+        s.target_lantern_id = null;
 
-        // Push dir
         const d2 = dist2D(this.player.pos, s.pos);
         if (d2 > 0.001) {
           s.push_vel = [
@@ -856,18 +950,17 @@ export class Simulation {
         }
 
         stunnedIds.push(s.id);
-        this.score += this.tuning.score.per_stun || 5;
+        // +15 nếu trước đó đang drain, +5 nếu thường
+        this.score += wasDrain ? (this.tuning.score.per_stun_drain || 15) : (this.tuning.score.per_stun || 5);
       }
     }
 
-    // Target drifters
     for (const d of this.drifters) {
       if (dist3D(pulseCenter, d.pos) <= (this.tuning.pulse_radius || 5.0)) {
         if (d.state === 'chase') {
           d.state = 'flee';
           d.flee_ticks_left = this.tuning.drifter_flee_ticks || 240;
         } else if (d.state === 'flee' && d.stolen > 0) {
-          // Drop stolen motes at current spot
           for (let i = 0; i < d.stolen; i++) {
             this.motes.push({
               id: `M${this.nextMoteId++}`,
@@ -926,25 +1019,47 @@ export class Simulation {
         continue;
       }
 
-      const d = dist2D(s.pos, this.player.pos);
+      if (s.safe_push_ticks_left > 0) {
+        continue; // Đang bị vùng an toàn đẩy ra mép, không chạy AI thông thường
+      }
 
-      if (s.state === 'wander') {
-        if (d <= detectR) {
+      const dPlayer = dist2D(s.pos, this.player.pos);
+
+      // --- DRAIN STATE TRANSITIONS ---
+      if (s.state === 'drain') {
+        // Sang chase nếu Mây vào trong 6m
+        if (dPlayer <= 6.0) {
           s.state = 'chase';
+          s.target_lantern_id = null;
+          continue;
         }
-      } else if (s.state === 'chase') {
-        if (d > loseR) {
+
+        // Kiểm tra đèn đang hút
+        const targetL = this.lanterns.find((l) => l.id === s.target_lantern_id);
+        if (!targetL || !targetL.lit || targetL.fuel_ticks >= 1800 || dist2D(s.pos, targetL.pos) > 2.0) {
           s.state = 'wander';
-        } else if (d > 0.001) {
-          const dirX = (this.player.pos[0] - s.pos[0]) / d;
-          const dirZ = (this.player.pos[2] - s.pos[2]) / d;
+          s.target_lantern_id = null;
+          continue;
+        }
+
+        // Đang đứng yên hút dầu
+        continue;
+      }
+
+      // --- CHASE STATE ---
+      if (s.state === 'chase') {
+        if (dPlayer > loseR) {
+          s.state = 'wander';
+        } else if (dPlayer > 0.001) {
+          const dirX = (this.player.pos[0] - s.pos[0]) / dPlayer;
+          const dirZ = (this.player.pos[2] - s.pos[2]) / dPlayer;
           const nextX = s.pos[0] + dirX * baseSpeed * dt;
           const nextZ = s.pos[2] + dirZ * baseSpeed * dt;
 
-          // Check safe zones
           let blocked = false;
           for (const l of this.lanterns) {
-            if (l.lit && dist2D([nextX, 0, nextZ], l.pos) < safeR) {
+            // Only blocks if lit and fuel >= 30
+            if (l.lit && l.fuel_ticks >= 1800 && dist2D([nextX, 0, nextZ], l.pos) < safeR) {
               blocked = true;
               break;
             }
@@ -953,6 +1068,69 @@ export class Simulation {
           if (!blocked) {
             s.pos[0] = round3(nextX);
             s.pos[2] = round3(nextZ);
+          }
+        }
+        continue;
+      }
+
+      // --- WANDER STATE ---
+      if (s.state === 'wander') {
+        if (dPlayer <= detectR) {
+          s.state = 'chase';
+          s.target_lantern_id = null;
+          continue;
+        }
+
+        // Tìm đèn sáng có fuel < 30 gần nhất
+        let weakLanterns = this.lanterns.filter((l) => l.lit && l.fuel_ticks < 1800);
+        let targetL = null;
+
+        if (weakLanterns.length > 0) {
+          weakLanterns.sort((a, b) => {
+            const da = dist2D(s.pos, a.pos);
+            const db = dist2D(s.pos, b.pos);
+            if (Math.abs(da - db) > 0.001) return da - db;
+            return a.id.localeCompare(b.id);
+          });
+          targetL = weakLanterns[0];
+        } else {
+          // Đi về đèn tắt gần nhất
+          let unlitLanterns = this.lanterns.filter((l) => !l.lit);
+          if (unlitLanterns.length > 0) {
+            unlitLanterns.sort((a, b) => dist2D(s.pos, a.pos) - dist2D(s.pos, b.pos));
+            targetL = unlitLanterns[0];
+          }
+        }
+
+        if (targetL) {
+          s.target_lantern_id = targetL.id;
+          const dLantern = dist2D(s.pos, targetL.pos);
+
+          // Nếu cách đèn weak <= 2m -> chuyển sang drain
+          if (targetL.lit && targetL.fuel_ticks < 1800 && dLantern <= 2.0) {
+            s.state = 'drain';
+            s.drain_ticks = 0;
+            continue;
+          }
+
+          if (dLantern > 0.001) {
+            const dirX = (targetL.pos[0] - s.pos[0]) / dLantern;
+            const dirZ = (targetL.pos[2] - s.pos[2]) / dLantern;
+            const nextX = s.pos[0] + dirX * baseSpeed * dt;
+            const nextZ = s.pos[2] + dirZ * baseSpeed * dt;
+
+            let blocked = false;
+            for (const l of this.lanterns) {
+              if (l.lit && l.fuel_ticks >= 1800 && dist2D([nextX, 0, nextZ], l.pos) < safeR) {
+                blocked = true;
+                break;
+              }
+            }
+
+            if (!blocked) {
+              s.pos[0] = round3(nextX);
+              s.pos[2] = round3(nextZ);
+            }
           }
         }
       }
@@ -995,7 +1173,6 @@ export class Simulation {
   }
 
   handleCollisions() {
-    // 1. Drifter steal first
     for (const d of this.drifters) {
       if (d.state === 'chase' && dist2D(d.pos, this.player.pos) <= 1.2) {
         const stolen = Math.min(3, this.player.carried);
@@ -1017,7 +1194,6 @@ export class Simulation {
       }
     }
 
-    // 2. Shades hit (sorted by id ascending)
     const sortedShades = [...this.shades].sort((a, b) => a.id.localeCompare(b.id));
     let hitAppliedThisTick = false;
 
@@ -1034,7 +1210,6 @@ export class Simulation {
           this.player.flames -= 1;
           this.player.invuln_ticks = this.tuning.invuln_ticks || 90;
 
-          // Recoil shade 2m in 60 ticks
           s.state = 'recoil';
           s.state_ticks_left = 60;
           if (dXZ > 0.001) {
@@ -1046,7 +1221,6 @@ export class Simulation {
             s.push_vel = [2.0 / 60, 0];
           }
 
-          // Drop floor(carried / 2) motes in ring 1.5 - 2.5m
           const dropCount = Math.floor(this.player.carried / 2);
           this.player.carried -= dropCount;
 
@@ -1083,11 +1257,9 @@ export class Simulation {
   }
 
   handleSpawns() {
-    // 1. Mote respawn every 240 ticks if < 30
     if (this.sim_tick % 240 === 0) {
       const activeCount = this.motes.filter((m) => m.active).length;
       if (activeCount < 30 && this.moteSpawnPoints.length > 0) {
-        // Pick empty point
         const emptyPoints = this.moteSpawnPoints.filter((pt) => {
           return !this.motes.some((m) => m.active && dist2D(m.pos, pt) < 0.5);
         });
@@ -1104,19 +1276,17 @@ export class Simulation {
       }
     }
 
-    // 2. Shades spawn schedule
-    let spawnInterval = 480; // Night 1: 8s
+    let spawnInterval = 480;
     let maxShades = 6;
     if (this.night === 2) {
-      spawnInterval = 420; // 7s
+      spawnInterval = 420;
       maxShades = 8;
     } else if (this.night === 3) {
-      spawnInterval = 360; // 6s
+      spawnInterval = 360;
       maxShades = 10;
     }
 
     if (this.sim_tick === 300) {
-      // First 2 shades at 5s
       for (let i = 0; i < 2 && this.shades.length < maxShades; i++) {
         this.spawnShade();
       }
@@ -1126,7 +1296,6 @@ export class Simulation {
       }
     }
 
-    // 3. Drifters spawn (Night 2 and 3 at tick 1200, 2400...)
     if ((this.night === 2 || this.night === 3) && this.sim_tick > 0 && this.sim_tick % 1200 === 0) {
       if (this.drifters.length < 2) {
         const rad = this.rng.range(0, 2 * Math.PI);
@@ -1141,7 +1310,6 @@ export class Simulation {
       }
     }
 
-    // 4. Wind cycle (Night 3: every 30s = 1800 ticks, duration 5s = 300 ticks)
     if (this.night === 3) {
       const cycle = this.sim_tick % 1800;
       if (cycle >= 1680 && cycle < 1800) {
@@ -1171,6 +1339,8 @@ export class Simulation {
         pos: [pt[0], pt[1], pt[2]],
         state: 'spawning',
         state_ticks_left: 30,
+        target_lantern_id: null,
+        drain_ticks: 0,
         push_vel: [0, 0],
         push_ticks_left: 0,
         safe_push_ticks_left: 0,
@@ -1185,6 +1355,7 @@ export class Simulation {
   }
 
   checkGameConditions() {
+    // 1. Loss: flames <= 0 (always loses with no_flames first, even on final tick)
     if (this.player.flames <= 0) {
       this.state = 'lost';
       this.pendingEvents.push({
@@ -1196,30 +1367,42 @@ export class Simulation {
       return;
     }
 
-    const allLit = this.lanterns.length > 0 && this.lanterns.every((l) => l.lit);
-    if (allLit) {
-      this.state = 'won';
-      const timeBonus = Math.floor(this.time_left_s) * (this.tuning.score.per_second_left || 2);
-      const flameBonus = this.player.flames * (this.tuning.score.per_flame_left || 50);
-      this.score += timeBonus + flameBonus;
-
-      this.pendingEvents.push({
-        type: 'event',
-        tick: this.tick,
-        name: 'game_over',
-        data: { result: 'won', reason: 'all_lit' },
-      });
-      return;
-    }
-
+    // 2. Dawn check when time expires
     if (this.time_left_s <= 0) {
-      this.state = 'lost';
-      this.pendingEvents.push({
-        type: 'event',
-        tick: this.tick,
-        name: 'game_over',
-        data: { result: 'lost', reason: 'dawn' },
-      });
+      const litLanterns = this.lanterns.filter((l) => l.lit);
+      const totalCount = this.lanterns.length;
+      const threshold = Math.ceil(totalCount * (this.tuning.win_ratio || 0.6));
+
+      if (litLanterns.length >= threshold) {
+        // WIN: dawn_survived
+        this.state = 'won';
+
+        // Điểm bình minh: +50/mỗi flame, + (50 + floor(fuel))/mỗi đèn đang sáng
+        const flameBonus = this.player.flames * (this.tuning.score.dawn_per_flame || 50);
+        let lanternBonus = 0;
+        for (const l of litLanterns) {
+          const f = Math.floor(l.fuel_ticks / 60);
+          lanternBonus += (this.tuning.score.dawn_per_lit_lantern || 50) + f;
+        }
+
+        this.score += flameBonus + lanternBonus;
+
+        this.pendingEvents.push({
+          type: 'event',
+          tick: this.tick,
+          name: 'game_over',
+          data: { result: 'won', reason: 'dawn_survived' },
+        });
+      } else {
+        // LOSE: dawn
+        this.state = 'lost';
+        this.pendingEvents.push({
+          type: 'event',
+          tick: this.tick,
+          name: 'game_over',
+          data: { result: 'lost', reason: 'dawn' },
+        });
+      }
       return;
     }
   }
@@ -1243,6 +1426,7 @@ export class Simulation {
         grounded: this.player.grounded,
         flames: this.player.flames,
         carried: this.player.carried,
+        capacity: this.getCapacity(),
         invuln: this.player.invuln_ticks > 0,
         dash_cd_s: round3(this.player.dash_cd_ticks / 60),
         pulse_cd_s: round3(this.player.pulse_cd_ticks / 60),
@@ -1253,6 +1437,9 @@ export class Simulation {
         pos: [round3(l.pos[0]), round3(l.pos[1]), round3(l.pos[2])],
         lit: l.lit,
         deposited: l.deposited,
+        fuel: l.lit ? round1(l.fuel_ticks / 60) : 0,
+        ever_lit: !!l.ever_lit,
+        relit_count: l.relit_count || 0,
       })),
       shades: this.shades.map((s) => ({
         id: s.id,
