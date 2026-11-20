@@ -1,47 +1,40 @@
 # Giả định kỹ thuật & Yêu cầu qua các Phase
 
-## Phase 1 (PRD-0) — Đêm 1: Đảo Bến
-*(Đã lưu trữ và hoàn thành ở tag `phase-1`)*
+## Phase 1 (PRD-0) — Đêm 1: Đảo Bến (Đã nghiệm thu)
+## Phase 2 (TICKET-02) — "Ba hòn đảo" (Đã nghiệm thu)
 
 ---
 
-## Phase 2 (TICKET-02) — "Ba hòn đảo" (Contract v1.1)
+## Phase 3 (TICKET-03) — Change Request "Đèn cạn dầu" (Contract v1.2)
 
-### 1. Thay đổi chuẩn hóa từ Ticket-02 (thay thế giả định Phase 1)
-- **Chi phí thắp đèn**: Tăng từ 5 lên **10 đom đóm**. Cho phép nạp nhiều lần, đèn ghi nhớ tiến độ tích lũy.
-- **Bán kính tương tác đèn**: Chuẩn hóa thành **2.0 m** (Phase 1 dùng 2.5 m).
-- **Bán kính nhặt đom đóm**: Chuẩn hóa thành **XZ ≤ 1.0 m** và chênh cao giữa chân Mây và mặt đất nơi đặt đom đóm **≤ 1.5 m** (Phase 1 dùng 1.5 m).
-- **Kỹ năng Tỏa Sáng (Pulse)**:
-  - Chi phí: Tăng từ 1 lên **3 đom đóm** (không đủ 3 con thì không kích hoạt).
-  - Hồi chiêu: **3.0 s** (Phase 1 dùng 1.0 s).
-  - Điểm thưởng trúng pulse: Chuẩn hóa thành **+5 điểm/con** (Phase 1 dùng 20 điểm).
-  - Thời gian choáng: 120 ticks, đẩy lùi 4 m trong 15 tick đầu theo phương ngang.
-- **Bóng Mực (Shades)**:
-  - Tốc độ: 4.0 m/s (Đêm 3 là 4.5 m/s).
-  - Phạm vi phát hiện: 12 m; bỏ đuổi khi Mây vượt quá 18 m.
-  - Trạng thái chuẩn hóa bắt buộc: `spawning`, `wander`, `chase`, `recoil`, `stunned`.
-  - Va chạm: XZ ≤ 1.0 m và chênh cao ≤ 1.5 m. Gây hit lùi 2 m trong 60 tick. Mây bất tử 90 tick và rơi `floor(carried / 2)` đom đóm ra vành 1.5–2.5 m (tồn tại 480 tick).
-- **Rơi khỏi đảo**: `fall_enabled = true`. Khi Y < -10 m: mất 1 flame, mất toàn bộ đom đóm, chờ 60 tick rồi hồi sinh tại vị trí xuất phát với vận tốc 0, bất tử 90 tick.
-- **Điểm thắng cuộc**: `+ floor(giây còn lại) × 2 + 50 × Ngọn Lửa còn lại`.
-
-### 2. Tính năng mới & Cơ chế mở rộng
-- **Kỹ năng Lướt (Dash)**:
-  - Tốc độ: 14 m/s trong 0.2 s (12 ticks).
-  - Hồi chiêu: 1.5 s tính từ lúc bắt đầu lướt.
-  - Hướng lướt: Theo hướng di chuyển; nếu đứng yên thì theo hướng quay mặt. Trên không giữ nguyên độ cao (Y vel = 0).
-- **Nhảy**: Vận tốc 7.0 m/s, trọng lực -20 m/s², chỉ nhảy khi chạm đất (`grounded`).
-- **Gió Lạc (Drifters)** (Đêm 2 & 3):
-  - Tốc độ bay 7.0 m/s, tối đa 2 con. Sinh tại tick 1200, 2400...
-  - Khi Mây mang ≥ 5 đom đóm và cách ≤ 15 m: Gió Lạc chuyển `chase` cướp `min(3, carried)` đom đóm rồi chuyển sang `flee` bay ra xa trong 240 tick rồi biến mất.
-  - Nếu bị Pulse trúng lúc đang flee mang đồ: Rơi toàn bộ đom đóm đã cướp lại tại chỗ.
-- **Bùa Gió (Wind Charm)**:
-  - Nhặt được như đom đóm, hiệu lực 600 tick: Tăng tốc độ chạy lên 7.2 m/s và Lướt Dash không có thời gian hồi chiêu! Tái xuất hiện sau 2700 tick.
-- **Bục nhảy (Jump pads)**:
-  - Đêm 2: Bắn người chơi lên Y=14 m/s và vận tốc ngang 24 m/s hướng về tâm đảo kia.
-  - Đêm 3: Bắn lên tầng 2 (Y=12 m/s, ngang 8 m/s hướng -Z).
-- **Gió mạnh (Đêm 3)**:
-  - Mỗi 30 s có một cơn gió 5 s đẩy người chơi 2 m/s theo hướng ngẫu nhiên (báo trước 2 s).
-- **Hệ thống 3 Đêm**:
-  - Đêm 1 (Đảo Bến, 300s, 5 đèn L1..L5).
-  - Đêm 2 (Đảo Cau, 330s, 6 đèn L1..L6, 2 đảo nối cầu tre, bục nhảy, Gió Lạc, Bùa Gió).
-  - Đêm 3 (Đảo Chuông, 360s, 7 đèn L1..L7, 3 tầng, tháp chuông, bục nhảy, gió mạnh).
+### 1. Chi tiết Thay đổi Luật Cốt lõi & Giả định Thiết kế
+- **Nhiên liệu đèn (`fuel`)**:
+  - Thang đo: 0 đến 100. Đèn tắt có `fuel = 0`.
+  - Tiêu hao: $1.0$ đơn vị/s. Trong mã nguồn, để loại bỏ sai số số thực, lưu trữ `fuel_ticks` với 1 đơn vị = 60 ticks.
+  - Châm dầu (`refuel`): Khi người chơi bấm tương tác với đèn đang sáng:
+    $$\text{used} = \min\left(\text{carried}, \left\lceil \frac{100 - \text{fuel}}{10} \right\rceil\right)$$
+    $$\text{fuel} = \min(100, \text{fuel} + 10 \times \text{used})$$
+    Trừ `used` đom đóm mang theo. Đèn đầy dầu (`used == 0`) không được tương tác.
+  - Cạn dầu: Khi $\text{fuel} \le 0$, đèn tắt, `deposited = 0`, `lit = false`, phát sự kiện `lantern_out`, ghi nhớ `ever_lit = true`.
+  - Thắp lại: Đèn đã từng sáng (`ever_lit == true`) chỉ cần 5 đom đóm để thắp lại; đèn chưa từng sáng cần 10 đom đóm.
+- **Bóng Mực hút dầu (`drain`)**:
+  - Khi $\text{fuel} < 30$, đèn mất vùng an toàn 6m. Đúng 30 thì vùng an toàn vẫn còn.
+  - Bóng Mực `wander` ưu tiên tìm đèn sáng có $\text{fuel} < 30$ gần nhất (bằng nhau thì id nhỏ hơn).
+  - Khi khoảng cách XZ $\le 2.0$m: Bóng Mực chuyển sang `drain`, đứng yên và hút 5 fuel/giây (5/60 mỗi tick). Phát sự kiện `fuel_drain` mỗi 60 tick.
+  - Nếu đèn được châm dầu lên $\ge 30$, Bóng Mực đang trong vùng 6m bị đẩy lùi ra mép trong tối đa 30 tick và không gây sát thương trong lúc đó.
+- **Luật Thắng Mới (Bình minh)**:
+  - Thời lượng: Đêm 1: 240s, Đêm 2: 270s, Đêm 3: 300s.
+  - Không còn thắng sớm. Thắng khi hết giờ (bình minh) và số đèn sáng $\ge \lceil 0.6 \times \text{tổng đèn}\rceil$:
+    - Đêm 1: $\ge 3/5$ đèn.
+    - Đêm 2: $\ge 4/6$ đèn.
+    - Đêm 3: $\ge 5/7$ đèn.
+  - Lý do kết thúc: `dawn_survived` khi thắng; `no_flames` (hết máu) hoặc `dawn` (hết giờ mà thiếu đèn) khi thua.
+- **Sức chứa Đom đóm Tăng dần**:
+  - $\text{capacity} = \min(20, 10 + 2 \times \text{successful\_lights})$.
+  - `successful_lights` tăng 1 mỗi lần thắp sáng thành công (kể cả thắp lại; đèn dựng bằng scenario không tính). Đặt lại 0 đầu mỗi đêm.
+- **Hệ thống Điểm chuẩn v1.2**:
+  - Mỗi đom đóm nạp (thắp mới, thắp lại, châm dầu): +5 điểm.
+  - Thắp lần đầu: +100 điểm.
+  - Thắp lại: +40 điểm.
+  - Tỏa Sáng trúng Bóng Mực: +5 điểm thường, +15 điểm nếu con đó đang ở trạng thái `drain`.
+  - Bình minh khi thắng: +50 điểm/mỗi flame còn lại + (+50 + $\lfloor\text{fuel}\rfloor$)/mỗi đèn đang sáng.
