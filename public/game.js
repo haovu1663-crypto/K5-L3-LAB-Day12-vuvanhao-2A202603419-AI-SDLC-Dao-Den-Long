@@ -1137,8 +1137,10 @@ function gameLoop(currentTime) {
   let mz = 0;
   if (keys['w'] || keys['arrowup']) mz += 1;
   if (keys['s'] || keys['arrowdown']) mz -= 1;
-  if (keys['a'] || keys['arrowleft']) mx -= 1;
-  if (keys['d'] || keys['arrowright']) mx += 1;
+  // Camera nhìn dọc +Z nên +X của contract nằm bên TRÁI màn hình → đảo dấu A/D ở giao diện.
+  // (Chỉ đổi ánh xạ phím; logic simulation/headless giữ nguyên theo contract.)
+  if (keys['a'] || keys['arrowleft']) mx += 1;
+  if (keys['d'] || keys['arrowright']) mx -= 1;
 
   const interact = !!keys['e'];
   const pulse = !!keys['q'];
