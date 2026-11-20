@@ -225,6 +225,26 @@ class AudioManager {
       sub.stop(now + 0.35);
     } catch (_) {}
   }
+  playSiuuu() {
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const freqs = [330, 440, 554.37, 659.25]; // E major triumphant chord
+      freqs.forEach((f, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(f, now + idx * 0.04);
+        osc.frequency.exponentialRampToValueAtTime(f * 1.5, now + 0.45);
+        gain.gain.setValueAtTime(0.28, now + idx * 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(now + idx * 0.04);
+        osc.stop(now + 0.45);
+      });
+    } catch (_) {}
+  }
 }
 
 const audio = new AudioManager();
@@ -1082,9 +1102,157 @@ function createPlayerMesh() {
   pLight.position.set(0.35, 1.35, 0.25);
   playerGroup.add(pLight);
 
+  // --- SUPER SIUUU UPGRADES FOR MÂY ---
+  // 1. Celestial Lotus Wings (Golden feather energy wings)
+  const wingShape = new THREE.Shape();
+  wingShape.moveTo(0, 0);
+  wingShape.quadraticCurveTo(0.35, 0.55, 0.85, 0.8);
+  wingShape.quadraticCurveTo(0.65, 0.25, 0.75, -0.15);
+  wingShape.quadraticCurveTo(0.35, -0.05, 0, 0);
+  const wingGeo = new THREE.ShapeGeometry(wingShape);
+  const wingMat = new THREE.MeshBasicMaterial({
+    color: 0xffea75,
+    transparent: true,
+    opacity: 0.8,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const wingPivotL = new THREE.Group();
+  wingPivotL.position.set(-0.16, 0.95, -0.2);
+  const wingMeshL = new THREE.Mesh(wingGeo, wingMat);
+  wingMeshL.rotation.y = Math.PI - 0.2;
+  wingMeshL.scale.set(1.15, 1.15, 1.15);
+  wingPivotL.add(wingMeshL);
+  playerGroup.add(wingPivotL);
+  limbs.wingL = wingPivotL;
+
+  const wingPivotR = new THREE.Group();
+  wingPivotR.position.set(0.16, 0.95, -0.2);
+  const wingMeshR = new THREE.Mesh(wingGeo, wingMat);
+  wingMeshR.rotation.y = 0.2;
+  wingMeshR.scale.set(-1.15, 1.15, 1.15);
+  wingPivotR.add(wingMeshR);
+  playerGroup.add(wingPivotR);
+  limbs.wingR = wingPivotR;
+
+  // 2. Halo of Enlightenment behind Nón Lá
+  const haloRingGeo = new THREE.TorusGeometry(0.55, 0.022, 16, 36);
+  const haloRingMat = new THREE.MeshBasicMaterial({
+    color: 0xffd700,
+    transparent: true,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+  });
+  const haloRing = new THREE.Mesh(haloRingGeo, haloRingMat);
+  haloRing.position.set(0, 1.55, -0.12);
+  playerGroup.add(haloRing);
+  limbs.haloRing = haloRing;
+
+  // 3. Orbiting Spirit Firefly Orbs (Tam Tinh Hộ Mệnh)
+  const orbitingOrbs = [];
+  const orbGeo = new THREE.SphereGeometry(0.075, 12, 12);
+  const orbMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  for (let k = 0; k < 3; k++) {
+    const orbGroup = new THREE.Group();
+    const orbMesh = new THREE.Mesh(orbGeo, orbMat);
+    const orbGlow = glowSprite(moteGlowTex, 1.3, 0.9);
+    orbGroup.add(orbMesh, orbGlow);
+    playerGroup.add(orbGroup);
+    orbitingOrbs.push(orbGroup);
+  }
+  limbs.orbitingOrbs = orbitingOrbs;
+
+  // 4. Ground Lotus Disc (Đài Sen Thần Tốc Dưới Chân)
+  const footLotusGeo = new THREE.PlaneGeometry(1.4, 1.4);
+  const footLotusMat = new THREE.MeshBasicMaterial({
+    map: mandalaTexture,
+    transparent: true,
+    opacity: 0.65,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const footLotus = new THREE.Mesh(footLotusGeo, footLotusMat);
+  footLotus.rotation.x = -Math.PI / 2;
+  footLotus.position.y = 0.03;
+  playerGroup.add(footLotus);
+  limbs.footLotus = footLotus;
+
+  // 5. Super Overdrive Aura Mesh (Bốc lửa vàng kim khi sẵn sàng chưởng)
+  const auraGeo = new THREE.CylinderGeometry(0.65, 0.85, 1.8, 16, 1, true);
+  const auraMat = new THREE.MeshBasicMaterial({
+    color: 0xffb703,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const superAura = new THREE.Mesh(auraGeo, auraMat);
+  superAura.position.y = 0.9;
+  playerGroup.add(superAura);
+  limbs.superAura = superAura;
+
   scene.add(playerGroup);
 }
 createPlayerMesh();
+
+// Floating "SIUUU! ⚡🔥" Comic Sticker & Trigger
+function makeSiuuuTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 256;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, 512, 256);
+
+  // Comic style energy badge
+  g.fillStyle = 'rgba(255, 150, 0, 0.92)';
+  g.beginPath();
+  g.roundRect(24, 24, 464, 208, 40);
+  g.fill();
+
+  g.strokeStyle = '#FFFFFF';
+  g.lineWidth = 12;
+  g.stroke();
+
+  g.font = '900 82px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+
+  // Outline
+  g.strokeStyle = '#6A040F';
+  g.lineWidth = 16;
+  g.strokeText('SIUUU! ⚡🔥', 256, 128);
+
+  const grad = g.createLinearGradient(0, 60, 0, 190);
+  grad.addColorStop(0, '#FFFFFF');
+  grad.addColorStop(0.4, '#FFE58A');
+  grad.addColorStop(1, '#FF3D00');
+  g.fillStyle = grad;
+  g.fillText('SIUUU! ⚡🔥', 256, 128);
+
+  return new THREE.CanvasTexture(c);
+}
+
+const siuuuTex = makeSiuuuTexture();
+const siuuuSpriteMat = new THREE.SpriteMaterial({
+  map: siuuuTex,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+});
+const siuuuSprite = new THREE.Sprite(siuuuSpriteMat);
+siuuuSprite.scale.set(3.2, 1.6, 1.0);
+scene.add(siuuuSprite);
+
+let siuuuTimer = 0;
+function triggerSiuuuPopup() {
+  siuuuSprite.position.set(playerGroup.position.x, playerGroup.position.y + 2.4, playerGroup.position.z);
+  siuuuTimer = 1.0;
+  audio.playSiuuu();
+}
 
 // Lanterns 3D representations
 let lanternMeshes = [];
@@ -1907,6 +2075,7 @@ function gameLoop(currentTime) {
         }
         if (ev.name === 'blast') {
           audio.playBlast();
+          triggerSiuuuPopup();
           const rad = playerGroup.rotation.y;
           const dirX = Math.sin(rad);
           const dirZ = Math.cos(rad);
@@ -1990,6 +2159,58 @@ function gameLoop(currentTime) {
     const targetFov = sim.player.dash_active_ticks > 0 ? 70 : 60;
     camera.fov += (targetFov - camera.fov) * 0.2;
     camera.updateProjectionMatrix();
+
+    // Super Siuuu character wings, aura, orbs & lotus animation
+    const tNowPlayer = Date.now() * 0.001;
+    const tWing = tNowPlayer * 7.5;
+    if (limbs.wingL && limbs.wingR) {
+      const flap = Math.sin(tWing) * 0.3 + (moving ? 0.22 : 0);
+      limbs.wingL.rotation.y = Math.PI - 0.2 + flap;
+      limbs.wingR.rotation.y = 0.2 - flap;
+      limbs.wingL.rotation.z = Math.sin(tWing * 0.5) * 0.12;
+      limbs.wingR.rotation.z = -Math.sin(tWing * 0.5) * 0.12;
+    }
+    if (limbs.haloRing) {
+      limbs.haloRing.rotation.z += 0.025;
+      limbs.haloRing.position.y = 1.55 + Math.sin(tNowPlayer * 3.0) * 0.03;
+    }
+    if (limbs.footLotus) {
+      limbs.footLotus.rotation.z += 0.018;
+      limbs.footLotus.material.opacity = (moving || !sim.player.grounded) ? 0.75 : 0.35;
+    }
+    if (limbs.orbitingOrbs) {
+      const orbDist = 0.88;
+      for (let k = 0; k < 3; k++) {
+        const ang = tNowPlayer * 2.6 + (k * Math.PI * 2) / 3;
+        limbs.orbitingOrbs[k].position.set(
+          Math.cos(ang) * orbDist,
+          1.1 + Math.sin(tNowPlayer * 4.0 + k * 1.5) * 0.2,
+          Math.sin(ang) * orbDist
+        );
+      }
+    }
+    if (limbs.superAura) {
+      const charges = sim.player.blast_charges || 0;
+      if (charges > 0) {
+        limbs.superAura.material.opacity = 0.38 + Math.sin(Date.now() * 0.015) * 0.2;
+        limbs.superAura.rotation.y += 0.08;
+        const sc = 1.0 + Math.sin(Date.now() * 0.02) * 0.08;
+        limbs.superAura.scale.set(sc, 1.0 + charges * 0.05, sc);
+      } else {
+        limbs.superAura.material.opacity = 0;
+      }
+    }
+  }
+
+  // Animate SIUUU floating popup
+  if (siuuuTimer > 0) {
+    siuuuTimer -= 0.022;
+    siuuuSprite.position.y += 0.038;
+    const s = (1.0 - siuuuTimer) * 0.9 + 2.4;
+    siuuuSprite.scale.set(s * 1.2, s * 0.6, 1.0);
+    siuuuSpriteMat.opacity = Math.min(1.0, siuuuTimer * 2.2);
+  } else {
+    siuuuSpriteMat.opacity = 0;
   }
   const tNow = Date.now() * 0.001;
   stars.rotation.y = tNow * 0.002;
