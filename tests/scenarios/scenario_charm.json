@@ -1,0 +1,6 @@
+{
+  "player": { "pos": [35, 0, 0], "carried": 0 },
+  "charms": [{ "id": "C1", "pos": [35, 0, 0], "available": true, "respawn_ticks": 0 }],
+  "random_motes": false,
+  "random_shades": false
+}

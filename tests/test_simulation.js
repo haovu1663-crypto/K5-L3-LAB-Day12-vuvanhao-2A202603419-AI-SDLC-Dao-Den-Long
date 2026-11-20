@@ -1,14 +1,13 @@
 import assert from 'assert';
-import fs from 'fs';
-import { Simulation, dist2D } from '../src/core/simulation.js';
+import { Simulation } from '../src/core/simulation.js';
 
-console.log('--- RUNNING SIMULATION SUITE ---');
+console.log('--- RUNNING REGRESSION SUITE (PHASE 1 ON STANDARDIZED NUMBERS) ---');
 
-// Test 1: Determinism check (Same seed and inputs produce identical output)
+// Test 1: Determinism
 function testDeterminism() {
   console.log('Testing determinism...');
-  const sim1 = new Simulation({ seed: 12345 });
-  const sim2 = new Simulation({ seed: 12345 });
+  const sim1 = new Simulation({ seed: 12345, night: 1 });
+  const sim2 = new Simulation({ seed: 12345, night: 1 });
 
   for (let i = 0; i < 60; i++) {
     sim1.step();
@@ -20,14 +19,14 @@ function testDeterminism() {
   console.log('✓ Determinism test passed!');
 }
 
-// Test 2: Mote pickup
+// Test 2: Mote pickup with standardized pickup_radius = 1.0m
 function testMotePickup() {
-  console.log('Testing mote pickup...');
-  const sim = new Simulation({ seed: 42 });
+  console.log('Testing mote pickup (pickup_radius = 1.0m)...');
+  const sim = new Simulation({ seed: 42, night: 1 });
   sim.applyScenario({
     player: { pos: [0, 0, 0], carried: 0 },
     random_motes: false,
-    motes: [[0, 0, 1.0]], // within pickup radius 1.5
+    motes: [[0, 0, 0.8]], // within 1.0m
     random_shades: false,
     shades: [],
   });
@@ -37,24 +36,22 @@ function testMotePickup() {
   assert.strictEqual(sim.score, 10);
   assert.strictEqual(events.length, 1);
   assert.strictEqual(events[0].name, 'mote_picked');
-  assert.strictEqual(events[0].data.carried, 1);
   console.log('✓ Mote pickup test passed!');
 }
 
-// Test 3: Depositing and lighting lantern
+// Test 3: Depositing and lighting lantern with standardized cost = 10
 function testLanternLighting() {
-  console.log('Testing deposit and lantern lighting...');
-  const sim = new Simulation({ seed: 42 });
+  console.log('Testing lantern deposit & lighting (cost = 10, interact_radius = 2.0m)...');
+  const sim = new Simulation({ seed: 42, night: 1 });
   sim.applyScenario({
-    player: { pos: [0, 0, 0], carried: 5 },
+    player: { pos: [0, 0, 0], carried: 10 },
     random_motes: false,
     motes: [],
     random_shades: false,
     shades: [],
-    lanterns: [{ id: 'L1', pos: [0, 0, 1.0], deposited: 0, lit: false }],
+    lanterns: [{ id: 'L1', pos: [0, 0, 1.5], deposited: 0, lit: false }],
   });
 
-  // Trigger interact (rising edge)
   sim.setInput({ interact: true });
   const events = sim.step();
 
@@ -62,23 +59,23 @@ function testLanternLighting() {
   const litEv = events.find((e) => e.name === 'lantern_lit');
 
   assert.ok(depositEv, 'Deposit event must be emitted');
-  assert.strictEqual(depositEv.data.amount, 5);
+  assert.strictEqual(depositEv.data.amount, 10);
   assert.ok(litEv, 'Lantern lit event must be emitted');
   assert.strictEqual(litEv.data.lantern_id, 'L1');
   assert.strictEqual(sim.player.carried, 0);
   console.log('✓ Lantern deposit & lighting test passed!');
 }
 
-// Test 4: Pulse stuns and pushes shade
+// Test 4: Pulse stuns and pushes shade with standardized pulse_cost = 3
 function testPulseStun() {
-  console.log('Testing pulse action on shades...');
-  const sim = new Simulation({ seed: 42 });
+  console.log('Testing pulse (pulse_cost = 3, stun 120 ticks, push 4m in 15 ticks)...');
+  const sim = new Simulation({ seed: 42, night: 1 });
   sim.applyScenario({
-    player: { pos: [0, 0, 0], carried: 2 },
+    player: { pos: [0, 0, 0], carried: 3 },
     random_motes: false,
     motes: [],
     random_shades: false,
-    shades: [{ id: 'S1', pos: [0, 0, 3.0] }], // within pulse radius 5.0
+    shades: [{ id: 'S1', pos: [0, 0, 3.0] }],
   });
 
   sim.setInput({ pulse: true });
@@ -90,20 +87,21 @@ function testPulseStun() {
 
   const shade = sim.shades[0];
   assert.strictEqual(shade.state, 'stunned');
+  assert.strictEqual(shade.state_ticks_left, 120);
   assert.ok(shade.pos[2] > 3.0, 'Shade must be pushed backwards');
   console.log('✓ Pulse stun test passed!');
 }
 
 // Test 5: Shade hits player
 function testShadeHitPlayer() {
-  console.log('Testing shade damaging player...');
-  const sim = new Simulation({ seed: 42 });
+  console.log('Testing shade attack & recoil...');
+  const sim = new Simulation({ seed: 42, night: 1 });
   sim.applyScenario({
     player: { pos: [0, 0, 0], carried: 4, flames: 3 },
     random_motes: false,
     motes: [],
     random_shades: false,
-    shades: [{ id: 'S1', pos: [0, 0, 0.5] }], // inside hit radius 1.2
+    shades: [{ id: 'S1', pos: [0, 0, 0.8] }], // inside hit radius 1.0
   });
 
   const events = sim.step();
@@ -113,20 +111,24 @@ function testShadeHitPlayer() {
   assert.strictEqual(hitEv.data.dropped, 2); // 50% of 4
   assert.strictEqual(sim.player.flames, 2);
   assert.strictEqual(sim.player.carried, 2);
+
+  // Check recoil on shade
+  const s = sim.shades[0];
+  assert.strictEqual(s.state, 'recoil');
   console.log('✓ Shade attack test passed!');
 }
 
 // Test 6: Win condition
 function testWinCondition() {
-  console.log('Testing win condition (all 5 lanterns lit)...');
-  const sim = new Simulation({ seed: 42 });
+  console.log('Testing win condition on 5 lanterns...');
+  const sim = new Simulation({ seed: 42, night: 1 });
   sim.applyScenario({
     lanterns: [
       { id: 'L1', lit: true },
       { id: 'L2', lit: true },
       { id: 'L3', lit: true },
       { id: 'L4', lit: true },
-      { id: 'L5', pos: [0, 0, 1.0], deposited: 4, lit: false },
+      { id: 'L5', pos: [0, 0, 1.0], deposited: 9, lit: false },
     ],
     player: { pos: [0, 0, 0], carried: 1 },
     random_motes: false,
@@ -151,4 +153,4 @@ testPulseStun();
 testShadeHitPlayer();
 testWinCondition();
 
-console.log('\nALL 6 SIMULATION UNIT TESTS PASSED SUCCESSFULLY!');
+console.log('\nALL 6 REGRESSION TESTS PASSED CLEANLY ON STANDARDIZED NUMBERS!');

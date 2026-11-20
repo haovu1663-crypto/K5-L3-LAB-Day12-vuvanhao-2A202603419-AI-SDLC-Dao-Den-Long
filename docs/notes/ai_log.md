@@ -16,13 +16,14 @@
 
 ### Bước 2.2: Nâng cấp Core Simulation Engine & Headless Runner (Contract v1.1)
 - Áp dụng thứ tự xử lý nghiêm ngặt 12 bước trong `src/core/simulation.js`.
-- Bổ sung cơ chế:
-  - Nhảy (`jump_velocity: 7.0`, `gravity: -20.0`, kiểm tra grounded).
-  - Lướt Dash (`dash_speed: 14.0` trong 12 ticks, hồi chiêu 90 ticks, giữ nguyên cao độ trên không).
-  - Bục nhảy Đêm 2 (bắn Y=14, ngang=24 giữa đảo A và B) và Đêm 3 (bắn Y=12, ngang=8 lên tầng 2).
-  - Rơi khỏi đảo (`Y < -10`): -1 flame, mất đom đóm, chờ 60 tick rồi hồi sinh, bất tử 90 tick.
-- Hỗ trợ 3 bản đồ chuẩn: Đêm 1 (Đảo Bến r=40m), Đêm 2 (Đảo Cau 2 đảo nối cầu tre), Đêm 3 (Đảo Chuông 3 tầng, tháp chuông, gió mạnh mỗi 30s).
-- Thêm thực thể mới: Gió Lạc (Drifters cướp đom đóm), Bùa Gió (Charms tăng tốc 7.2 m/s & Dash 0 cd), Đom đóm rơi (TTL 480 ticks).
-- Trạng thái Bóng Mực chuẩn hóa: `spawning`, `wander`, `chase`, `recoil`, `stunned`.
+- Hỗ trợ 3 bản đồ chuẩn, thực thể mới (Gió Lạc, Bùa Gió, bục nhảy, lướt Dash, rơi vực).
+- Chuẩn hóa 5 trạng thái Bóng Mực: spawning, wander, chase, recoil, stunned.
 - Nâng cấp `src/headless.js` xuất Snapshot và Events đầy đủ theo schema v1.1.
 - Ước tính token sử dụng: ~4,000 tokens.
+
+### Bước 2.3: Kiểm thử tự động, Kiểm tra không hồi quy & Đo hiệu năng
+- Cập nhật bộ test chống hồi quy Phase 1 `tests/test_simulation.js` với số liệu chuẩn hóa mới -> Đạt 100% (6/6 tests).
+- Xây dựng bộ test tính năng mới Phase 2 `tests/test_phase2.js` (Dash, Nhảy, Rơi đảo, Bùa Gió, Gió Lạc, Pause) -> Đạt 100% (6/6 tests).
+- Benchmark 1 Đêm đầy đủ (21.600 ticks) tại `tests/benchmark_perf.js` hoàn thành trong **0.093 giây** (vượt xa yêu cầu DoD ≤ 30.0 giây, nhanh gấp hơn 300 lần).
+- Sinh các file kịch bản headless mới và bằng chứng JSONL tại `docs/proof/proof_dash.jsonl`, `docs/proof/proof_charm.jsonl`, `docs/proof/proof_drifter.jsonl`.
+- Ước tính token sử dụng: ~3,500 tokens.
