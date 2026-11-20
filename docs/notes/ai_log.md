@@ -52,3 +52,12 @@
 - Hiển thị HUD sức chứa động: `đang mang / sức chứa` (tự động điều chỉnh số ô chứa từ 10 đến 20 slots).
 - Cập nhật âm thanh phản hồi cho sự kiện châm dầu (`refuel`) và tắt đèn hết dầu (`lantern_out`).
 - Ước tính token sử dụng: ~4,000 tokens.
+
+### Bước 3.5: Báo cáo Nghiệm thu, Retro, Cập nhật README & Gắn thẻ Tag `phase-3`
+- Viết báo cáo nghiệm thu tổng thể `docs/proof/phase3_verification.md` ghi nhận toàn diện việc tuân thủ DoD của Phase 3.
+- Cập nhật tài liệu rút kinh nghiệm `docs/notes/retro.md` ghi nhận các bài học về xử lý breaking change, thứ tự ưu tiên tick loop và thiết kế accessibility.
+- Cập nhật `README.md` với luật chơi, cách tính điểm, hướng dẫn chạy test và benchmark v1.2.
+- Kiểm thử toàn bộ hệ thống (`npm test` đạt 19/19 tests, benchmark đạt 0.368s), commit, gắn tag `phase-3` và push lên GitHub remote.
+- Ước tính token sử dụng: ~2,500 tokens.
+- **Tổng kết Phase 3**: ~16,000 tokens.
+- **Tổng lũy kế dự án (Phase 1 + 2 + 3)**: ~44,500 tokens.
