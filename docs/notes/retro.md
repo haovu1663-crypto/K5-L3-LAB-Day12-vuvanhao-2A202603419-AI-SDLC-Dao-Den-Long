@@ -37,7 +37,30 @@
 - **Tổng token sử dụng Phase 3**: ~13,500 tokens.
 - **Kỹ thuật tiết kiệm token**: Triển khai theo từng bước rõ ràng (Step 3.1: ADR & Contract -> Step 3.2: Simulation Engine -> Step 3.3: Unit Test & Proofs -> Step 3.4: 3D Visuals & Colorblind -> Step 3.5: Docs & Tag), tránh lặp lại ngữ cảnh không cần thiết.
 
-## 4. Kế hoạch cho Phase 4
+## 4. Kế hoạch cho Phase 4 (Đã hoàn thành)
 - Hoàn thiện sản phẩm cuối cùng (Release v1.0.0).
 - Chuẩn bị video demo `.mp4` dưới 5 phút thể hiện toàn bộ tính năng 3D, gameplay cả 3 đêm, chế độ mù màu và chạy headless CLI.
 - Hoàn thiện tài liệu `SUBMISSION.md`, `CREDITS.md`, `LICENSE`.
+
+---
+
+# Báo cáo Đánh giá Tổng kết Dự án (Final Retro) — Release v1.0.0
+
+## 1. Những bài học lớn qua 4 Phase phát triển
+- **Kiến trúc Tách biệt Logic & Hiển thị (Decoupled Engine)**: Là quyết định kiến trúc đúng đắn nhất trong toàn bộ dự án. Giúp simulation chạy độc lập hoàn toàn ở 60Hz, hỗ trợ headless CLI cực nhanh (21.600 ticks trong ~0.35s) và cho phép viết bộ test tự động độc lập với môi trường trình duyệt.
+- **Quản lý Thay đổi & Hạn chế Hồi quy (Regression Defense)**: Khi nhận Change Request Ticket-03 thay đổi cốt lõi (chuyển sang đèn có nhiên liệu, bỏ kết thúc sớm, tính điểm mới), việc lập ADR và cập nhật bộ test cũ có giải trình lý do rõ ràng giúp dự án chuyển hướng mượt mà mà không để sót bất kỳ lỗi hồi quy nào.
+- **Khai thác AI hiệu quả với Agentic Harness**:
+  - Tận dụng `AGENTS.md` để quy định thứ tự 12 bước trong 1 tick, chuẩn hóa Test Contract.
+  - Phân tích các lần AI mắc lỗi (như đếm trùng tick stun, hoặc nhầm lẫn logic camera Y/Z) để bổ sung ngay vào quy tắc harness, ngăn lỗi tái diễn.
+- **Tiếp cận Đa dạng Người dùng (Accessibility)**: Chế độ mù màu được thiết kế thực chất cả về màu sắc (`#00B3FF`, `#FFFFFF`) và hình học 3D (đèn xẹp 20%, có vết rách khi tắt).
+
+## 2. Thống kê & Quản lý Token Toàn Dự án
+- **Phase 1**: ~14,000 tokens.
+- **Phase 2**: ~14,500 tokens.
+- **Phase 3**: ~16,000 tokens.
+- **Phase 4 & Release**: ~6,500 tokens.
+- **Tổng toàn bộ dự án**: ~51,000 tokens (nằm trong hạn mức an toàn, tối ưu cao).
+
+## 3. Nếu làm lại từ đầu thì sẽ thay đổi điều gì?
+- Viết sẵn hệ thống Test Harness v1.2 ngay từ đầu để sẵn sàng cho các biến thể luật chơi phức tạp hơn.
+- Tự động hóa việc ghi snapshot JSONL bằng benchmark script thay vì chạy lệnh thủ công.

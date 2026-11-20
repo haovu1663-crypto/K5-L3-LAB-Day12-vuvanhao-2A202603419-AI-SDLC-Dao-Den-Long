@@ -60,4 +60,23 @@
 - Kiểm thử toàn bộ hệ thống (`npm test` đạt 19/19 tests, benchmark đạt 0.368s), commit, gắn tag `phase-3` và push lên GitHub remote.
 - Ước tính token sử dụng: ~2,500 tokens.
 - **Tổng kết Phase 3**: ~16,000 tokens.
-- **Tổng lũy kế dự án (Phase 1 + 2 + 3)**: ~44,500 tokens.
+
+---
+
+## Phase 4 — Đóng gói Sản phẩm, Phát hành & Bàn giao (Release v1.0.0)
+
+### Bước 4.1: Đóng gói Container Docker & Tài liệu Phát hành
+- Thiết lập `Dockerfile` và `.dockerignore` cho phép triển khai nhanh trong 1 lệnh duy nhất.
+- Viết báo cáo nghiệm thu `docs/proof/phase4_verification.md` đối chiếu mọi tiêu chí Release v1.0.0.
+- Viết tài liệu kịch bản video demo `docs/demo/video_script.md` mô tả 5 phân cảnh chi tiết.
+- Cập nhật tài liệu tổng kết retro toàn dự án `docs/notes/retro.md` và hoàn thiện `README.md`.
+- Ước tính token sử dụng Phase 4: ~6,500 tokens.
+
+---
+
+## Tổng kết Toàn bộ Dự án Day 12
+- **Phase 1**: ~14,000 tokens
+- **Phase 2**: ~14,500 tokens
+- **Phase 3**: ~16,000 tokens
+- **Phase 4**: ~6,500 tokens
+- **TỔNG LŨY KẾ TOÀN DỰ ÁN**: **~51,000 tokens** (vận hành hiệu quả, tuân thủ nghiêm ngặt tiêu chuẩn AI SDLC).

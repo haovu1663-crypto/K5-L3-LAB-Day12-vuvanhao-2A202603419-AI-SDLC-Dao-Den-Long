@@ -1,8 +1,8 @@
 # Đảo Đèn Lồng — 3D Game (Day 12 AI SDLC)
 
-> **Video Demo**: [Xem video demo tại GitHub Release v1.0.0](https://github.com/haovu1663-crypto/K5-L3-LAB-Day12-vuvanhao-2A202603419-AI-SDLC/releases) *(hoặc tại `docs/demo/demo.mp4`)*  
+> **Video Demo**: [Xem video demo tại GitHub Release v1.0.0](https://github.com/haovu1663-crypto/K5-L3-LAB-Day12-vuvanhao-2A202603419-AI-SDLC/releases) *(hoặc xem kịch bản tại `docs/demo/video_script.md`)*  
 > **Sinh viên thực hiện**: Vũ Văn Hào — MSSV: 2A202603419  
-> **Phiên bản hiện tại**: Phase 3 — Ticket-03: "Đèn Cạn Dầu" (Contract v1.2)
+> **Phiên bản hiện tại**: Release v1.0.0 (Hoàn thành Phase 4 — Contract v1.2)
 
 ---
 
@@ -18,6 +18,7 @@
 
 Game được thiết kế không phụ thuộc build tooling phức tạp, chạy mượt mà trên macOS, Linux và Windows:
 
+### Cách 1: Khởi chạy trực tiếp với Node.js
 ```bash
 # Lệnh 1: Cài đặt (nếu cần)
 npm install
@@ -26,6 +27,12 @@ npm install
 npm start
 
 # Lệnh 3: Mở trình duyệt trải nghiệm
+# Truy cập: http://localhost:3000
+```
+
+### Cách 2: Khởi chạy qua Docker Container (1 lệnh)
+```bash
+docker build -t dao-den-long . && docker run -p 3000:3000 dao-den-long
 # Truy cập: http://localhost:3000
 ```
 
