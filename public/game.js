@@ -272,26 +272,175 @@ function makeCloudTexture() {
   return t;
 }
 
-// Stars
+// ---- Vietnamese Sacred Lotus Mandala Texture Generator ----
+function makeMandalaTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  const cx = 256, cy = 256;
+
+  g.clearRect(0, 0, 512, 512);
+
+  // Outer ornate glowing ring
+  g.strokeStyle = 'rgba(255, 215, 100, 0.9)';
+  g.lineWidth = 6;
+  g.beginPath();
+  g.arc(cx, cy, 240, 0, Math.PI * 2);
+  g.stroke();
+
+  // Secondary dashed ring with ancient motif
+  g.strokeStyle = 'rgba(255, 235, 140, 0.65)';
+  g.lineWidth = 3;
+  g.setLineDash([14, 8]);
+  g.beginPath();
+  g.arc(cx, cy, 224, 0, Math.PI * 2);
+  g.stroke();
+  g.setLineDash([]);
+
+  // Inner ring
+  g.strokeStyle = 'rgba(255, 215, 100, 0.75)';
+  g.lineWidth = 4;
+  g.beginPath();
+  g.arc(cx, cy, 160, 0, Math.PI * 2);
+  g.stroke();
+
+  // 8 Sacred Lotus Petals
+  for (let i = 0; i < 8; i++) {
+    const ang = (i * Math.PI) / 4;
+    g.save();
+    g.translate(cx, cy);
+    g.rotate(ang);
+
+    // Petal curve with soft golden fill
+    g.strokeStyle = 'rgba(255, 225, 120, 0.9)';
+    g.fillStyle = 'rgba(255, 185, 60, 0.15)';
+    g.lineWidth = 4;
+    g.beginPath();
+    g.moveTo(0, 40);
+    g.quadraticCurveTo(55, 140, 0, 220);
+    g.quadraticCurveTo(-55, 140, 0, 40);
+    g.fill();
+    g.stroke();
+
+    // Central vein
+    g.strokeStyle = 'rgba(255, 245, 190, 0.7)';
+    g.lineWidth = 2.5;
+    g.beginPath();
+    g.moveTo(0, 50);
+    g.lineTo(0, 200);
+    g.stroke();
+
+    g.restore();
+  }
+
+  // Central sun / lotus aura core
+  const coreGrad = g.createRadialGradient(cx, cy, 0, cx, cy, 60);
+  coreGrad.addColorStop(0, 'rgba(255, 250, 220, 0.95)');
+  coreGrad.addColorStop(0.45, 'rgba(255, 195, 75, 0.55)');
+  coreGrad.addColorStop(1, 'rgba(255, 170, 40, 0)');
+  g.fillStyle = coreGrad;
+  g.beginPath();
+  g.arc(cx, cy, 60, 0, Math.PI * 2);
+  g.fill();
+
+  const tex = new THREE.CanvasTexture(c);
+  return tex;
+}
+const mandalaTexture = makeMandalaTexture();
+
+// ---- Aurora Borealis / Celestial Nebula Texture Generator ----
+function makeNebulaTexture() {
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 512;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, 1024, 512);
+
+  // Aurora curtains (cyan & magenta ribbons)
+  const grad1 = g.createLinearGradient(0, 0, 1024, 512);
+  grad1.addColorStop(0, 'rgba(0, 229, 255, 0)');
+  grad1.addColorStop(0.25, 'rgba(0, 229, 255, 0.22)');
+  grad1.addColorStop(0.5, 'rgba(155, 93, 229, 0.28)');
+  grad1.addColorStop(0.75, 'rgba(241, 91, 181, 0.18)');
+  grad1.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+  g.fillStyle = grad1;
+  g.beginPath();
+  g.moveTo(0, 200);
+  g.bezierCurveTo(250, 80, 500, 320, 750, 150);
+  g.bezierCurveTo(900, 80, 1024, 180, 1024, 300);
+  g.lineTo(1024, 512);
+  g.lineTo(0, 512);
+  g.closePath();
+  g.fill();
+
+  // Secondary soft aurora band
+  const grad2 = g.createRadialGradient(450, 180, 20, 450, 180, 320);
+  grad2.addColorStop(0, 'rgba(0, 255, 200, 0.18)');
+  grad2.addColorStop(0.6, 'rgba(80, 130, 255, 0.12)');
+  grad2.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  g.fillStyle = grad2;
+  g.fillRect(0, 0, 1024, 512);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  return tex;
+}
+
+// Celestial Aurora Nebula Dome
+const nebulaGeo = new THREE.SphereGeometry(520, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.45);
+const nebulaMat = new THREE.MeshBasicMaterial({
+  map: makeNebulaTexture(),
+  transparent: true,
+  opacity: 0.65,
+  side: THREE.BackSide,
+  depthWrite: false,
+  fog: false,
+  blending: THREE.AdditiveBlending,
+});
+const nebulaMesh = new THREE.Mesh(nebulaGeo, nebulaMat);
+scene.add(nebulaMesh);
+
+// Stars with Individual Colors & Twinkling
 const starsGeo = new THREE.BufferGeometry();
+const STAR_COUNT = 2200;
+const starPos = new Float32Array(STAR_COUNT * 3);
+const starColors = new Float32Array(STAR_COUNT * 3);
 {
-  const n = 1800;
-  const pos = new Float32Array(n * 3);
   let s = 12345;
   const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < STAR_COUNT; i++) {
     const th = rnd() * Math.PI * 2;
     const ph = Math.acos(rnd() * 0.95 + 0.05);
-    const r = 600;
-    pos[i * 3] = r * Math.sin(ph) * Math.cos(th);
-    pos[i * 3 + 1] = r * Math.cos(ph);
-    pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+    const r = 580;
+    starPos[i * 3] = r * Math.sin(ph) * Math.cos(th);
+    starPos[i * 3 + 1] = r * Math.cos(ph);
+    starPos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+
+    // Multi-color star palette (warm gold, pale cyan, diamond white)
+    const cType = rnd();
+    if (cType < 0.35) {
+      starColors[i * 3] = 1.0; starColors[i * 3 + 1] = 0.92; starColors[i * 3 + 2] = 0.65; // Gold
+    } else if (cType < 0.65) {
+      starColors[i * 3] = 0.72; starColors[i * 3 + 1] = 0.88; starColors[i * 3 + 2] = 1.0; // Cyan
+    } else {
+      starColors[i * 3] = 0.98; starColors[i * 3 + 1] = 0.98; starColors[i * 3 + 2] = 1.0; // White
+    }
   }
-  starsGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  starsGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
 }
 const stars = new THREE.Points(
   starsGeo,
-  new THREE.PointsMaterial({ color: 0xf5f1e6, size: 1.8, sizeAttenuation: false, fog: false })
+  new THREE.PointsMaterial({
+    vertexColors: true,
+    size: 2.0,
+    sizeAttenuation: false,
+    fog: false,
+    transparent: true,
+    opacity: 0.9,
+  })
 );
 scene.add(stars);
 
@@ -370,6 +519,75 @@ for (let i = 0; i < 3; i++) {
   cloudLayers.push(m);
 }
 
+// 3D Volumetric Cloud Pillows drifting around islands
+const cloudPuffMat = new THREE.MeshStandardMaterial({
+  color: 0x1d3654,
+  roughness: 0.95,
+  metalness: 0.05,
+  transparent: true,
+  opacity: 0.65,
+  flatShading: true,
+  depthWrite: false,
+});
+const cloudPuffGeo = new THREE.DodecahedronGeometry(1, 1);
+const cloudPuffs = [];
+for (let i = 0; i < 32; i++) {
+  const puff = new THREE.Mesh(cloudPuffGeo, cloudPuffMat);
+  const ang = (i / 32) * Math.PI * 2;
+  const dist = 38 + (i % 6) * 10;
+  puff.position.set(Math.cos(ang) * dist, -9 - (i % 4) * 2.5, Math.sin(ang) * dist);
+  const sc = 5 + (i % 5) * 3.5;
+  puff.scale.set(sc * 1.8, sc * 0.75, sc * 1.4);
+  puff.rotation.set((i * 0.3) % 3, (i * 0.5) % 3, (i * 0.7) % 3);
+  puff.userData = { origX: puff.position.x, origZ: puff.position.z, speed: 0.04 + (i % 3) * 0.025, ang };
+  scene.add(puff);
+  cloudPuffs.push(puff);
+}
+
+// Falling magical sakura blossom particles
+const LEAF_COUNT = 140;
+const leafGeo = new THREE.BufferGeometry();
+const leafPositions = new Float32Array(LEAF_COUNT * 3);
+const leafSpeeds = new Float32Array(LEAF_COUNT);
+for (let i = 0; i < LEAF_COUNT; i++) {
+  leafPositions[i * 3] = (Math.random() - 0.5) * 90;
+  leafPositions[i * 3 + 1] = 1 + Math.random() * 15;
+  leafPositions[i * 3 + 2] = (Math.random() - 0.5) * 90;
+  leafSpeeds[i] = 0.4 + Math.random() * 0.8;
+}
+leafGeo.setAttribute('position', new THREE.BufferAttribute(leafPositions, 3));
+const leafMat = new THREE.PointsMaterial({
+  color: 0xffb7c5, // Sakura petal pink
+  size: 0.32,
+  transparent: true,
+  opacity: 0.85,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+const leafParticles = new THREE.Points(leafGeo, leafMat);
+scene.add(leafParticles);
+
+// Ambient drifting fairy fireflies across the islands
+const AMBIENT_FIREFLIES = 80;
+const fireflyGeo = new THREE.BufferGeometry();
+const fireflyPos = new Float32Array(AMBIENT_FIREFLIES * 3);
+for (let i = 0; i < AMBIENT_FIREFLIES; i++) {
+  fireflyPos[i * 3] = (Math.random() - 0.5) * 80;
+  fireflyPos[i * 3 + 1] = 0.6 + Math.random() * 6.0;
+  fireflyPos[i * 3 + 2] = (Math.random() - 0.5) * 80;
+}
+fireflyGeo.setAttribute('position', new THREE.BufferAttribute(fireflyPos, 3));
+const fireflyMat = new THREE.PointsMaterial({
+  color: 0xfff6a0,
+  size: 0.42,
+  transparent: true,
+  opacity: 0.9,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+const ambientFireflies = new THREE.Points(fireflyGeo, fireflyMat);
+scene.add(ambientFireflies);
+
 // Ambient floating particles (dust / leaves) around the player
 const PARTICLE_N = 140;
 const partGeo = new THREE.BufferGeometry();
@@ -436,6 +654,37 @@ function addGrass(cx, cz, R, rnd) {
   inst.instanceMatrix.needsUpdate = true;
   if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
   islandGroup.add(inst);
+
+  // Luminescent night wildflowers (cyan & gold buds)
+  const FLOWER_COUNT = 90;
+  const flowerGeo = new THREE.SphereGeometry(0.12, 6, 6);
+  const flowerMat = new THREE.MeshStandardMaterial({
+    roughness: 0.3,
+    metalness: 0.1,
+    emissiveIntensity: 0.8,
+  });
+  const flowerInst = new THREE.InstancedMesh(flowerGeo, flowerMat, FLOWER_COUNT);
+  let fPlaced = 0;
+  while (fPlaced < FLOWER_COUNT) {
+    const a = rnd() * Math.PI * 2;
+    const r = Math.sqrt(rnd()) * (R - 2.0);
+    const x = cx + r * Math.cos(a);
+    const z = cz + r * Math.sin(a);
+    if (x > 24 && x < 46 && Math.abs(z) < 3.5) { fPlaced++; m4.makeScale(0, 0, 0); flowerInst.setMatrixAt(fPlaced - 1, m4); continue; }
+    m4.makeScale(1, 1, 1);
+    m4.setPosition(x, 0.22, z);
+    flowerInst.setMatrixAt(fPlaced, m4);
+    if (rnd() > 0.45) {
+      col.setHex(0x50e3c2); // Soft cyan
+    } else {
+      col.setHex(0xffd166); // Warm gold
+    }
+    flowerInst.setColorAt(fPlaced, col);
+    fPlaced++;
+  }
+  flowerInst.instanceMatrix.needsUpdate = true;
+  if (flowerInst.instanceColor) flowerInst.instanceColor.needsUpdate = true;
+  islandGroup.add(flowerInst);
 }
 
 function createStylizedTree(h, rnd, trunkMat, leafMat) {
@@ -498,6 +747,31 @@ function createStylizedTree(h, rnd, trunkMat, leafMat) {
       trunkSegments * leanAngleZ * 0.5 + (rnd() - 0.5) * 0.1
     );
     tree.add(tierGroup);
+  }
+
+  // Fairy paper lantern hanging on stylized tree branch (35% probability)
+  if (rnd() > 0.65) {
+    const fairyLantern = new THREE.Group();
+    const cordGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.6, 4);
+    const cordMat = new THREE.MeshBasicMaterial({ color: 0x332211 });
+    const cord = new THREE.Mesh(cordGeo, cordMat);
+    cord.position.y = -0.3;
+    fairyLantern.add(cord);
+
+    const miniLanternGeo = new THREE.SphereGeometry(0.22, 8, 8);
+    const miniLanternMat = new THREE.MeshStandardMaterial({
+      color: 0xffaa33,
+      emissive: 0xff7711,
+      emissiveIntensity: 0.9,
+      roughness: 0.3,
+    });
+    const miniLantern = new THREE.Mesh(miniLanternGeo, miniLanternMat);
+    miniLantern.position.y = -0.65;
+    miniLantern.scale.set(1.0, 1.25, 1.0);
+    fairyLantern.add(miniLantern);
+
+    fairyLantern.position.set(0.65 * (rnd() > 0.5 ? 1 : -1), currY * 0.9, 0.55 * (rnd() > 0.5 ? 1 : -1));
+    tree.add(fairyLantern);
   }
 
   return tree;
@@ -840,6 +1114,36 @@ function rebuildLanterns() {
     circle.position.y = 0.05;
     lGroup.add(circle);
 
+    // Sacred Lotus Mandala Ground Projection (r=6.0m, dia=12m)
+    const mandalaGeo = new THREE.PlaneGeometry(12.0, 12.0);
+    const mandalaMat = new THREE.MeshBasicMaterial({
+      map: mandalaTexture,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const mandalaMesh = new THREE.Mesh(mandalaGeo, mandalaMat);
+    mandalaMesh.rotation.x = -Math.PI / 2;
+    mandalaMesh.position.y = 0.06;
+    lGroup.add(mandalaMesh);
+
+    // Heavenly Ascending Light Pillar Beam (34m high)
+    const pillarBeamGeo = new THREE.CylinderGeometry(0.35, 1.3, 34, 16, 1, true);
+    pillarBeamGeo.translate(0, 17, 0);
+    const pillarBeamMat = new THREE.MeshBasicMaterial({
+      color: 0xffe082,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const pillarBeam = new THREE.Mesh(pillarBeamGeo, pillarBeamMat);
+    pillarBeam.position.y = 3.6;
+    lGroup.add(pillarBeam);
+
     const halo = glowSprite(lanternGlowTex, 9, 0);
     halo.position.y = 3.6;
     lGroup.add(halo);
@@ -884,6 +1188,8 @@ function rebuildLanterns() {
       roof: roof,
       light: light,
       circleMesh: circle,
+      mandalaMesh,
+      pillarBeam,
       halo,
       fuelBarGroup,
       fillMesh,
@@ -1065,10 +1371,10 @@ function updateCharmsVisual() {
   }
 }
 
-// Pulse Ring Effect
+// Pulse Ring & Expanding Dome Effect
 const pulseRingGeo = new THREE.RingGeometry(0.1, 0.5, 32);
 const pulseRingMat = new THREE.MeshBasicMaterial({
-  color: 0xffb347,
+  color: 0xffd166,
   side: THREE.DoubleSide,
   transparent: true,
   opacity: 0,
@@ -1077,10 +1383,23 @@ const pulseRing = new THREE.Mesh(pulseRingGeo, pulseRingMat);
 pulseRing.rotation.x = -Math.PI / 2;
 pulseRing.position.y = 0.1;
 scene.add(pulseRing);
+
+const pulseDomeGeo = new THREE.SphereGeometry(1, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.5);
+const pulseDomeMat = new THREE.MeshBasicMaterial({
+  color: 0xffd166,
+  side: THREE.BackSide,
+  transparent: true,
+  opacity: 0,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+const pulseDome = new THREE.Mesh(pulseDomeGeo, pulseDomeMat);
+scene.add(pulseDome);
 let pulseAnim = 0;
 
 function triggerPulseVisual() {
   pulseRing.position.set(playerGroup.position.x, playerGroup.position.y + 0.1, playerGroup.position.z);
+  pulseDome.position.set(playerGroup.position.x, playerGroup.position.y, playerGroup.position.z);
   pulseAnim = 1.0;
 }
 
@@ -1278,6 +1597,8 @@ function updateHUD() {
         if (currentFuel < 30) {
           // Fuel < 30: loses safe zone, blinks slowly at 1 Hz (1000ms period = 500ms on / 500ms off)
           meshObj.circleMesh.material.opacity = 0;
+          if (meshObj.mandalaMesh) meshObj.mandalaMesh.material.opacity = 0;
+          if (meshObj.pillarBeam) meshObj.pillarBeam.material.opacity = 0;
           const blinkOn = (Math.floor(Date.now() / 500) % 2) === 0;
           meshObj.boxMesh.material.color.setHex(blinkOn ? 0xffb347 : 0x5b3a1a);
           meshObj.boxMesh.material.emissiveIntensity = blinkOn ? 0.9 : 0.15;
@@ -1291,6 +1612,8 @@ function updateHUD() {
           meshObj.boxMesh.material.emissiveIntensity = 1.0;
           meshObj.light.intensity = 2.5 + Math.sin(Date.now() * 0.013 + lData.pos[0]) * 0.25;
           meshObj.circleMesh.material.opacity = 0.5;
+          if (meshObj.mandalaMesh) meshObj.mandalaMesh.material.opacity = 0.8;
+          if (meshObj.pillarBeam) meshObj.pillarBeam.material.opacity = 0.22 + Math.sin(Date.now() * 0.003 + lData.pos[0]) * 0.06;
           meshObj.halo.material.opacity = 0.85 + Math.sin(Date.now() * 0.004) * 0.1;
           meshObj.fillMesh.material.color.setHex(isColorblind ? 0x00b3ff : 0x50c878);
         }
@@ -1301,6 +1624,8 @@ function updateHUD() {
         meshObj.boxMesh.material.emissiveIntensity = 0;
         meshObj.light.intensity = 0;
         meshObj.circleMesh.material.opacity = 0;
+        if (meshObj.mandalaMesh) meshObj.mandalaMesh.material.opacity = 0;
+        if (meshObj.pillarBeam) meshObj.pillarBeam.material.opacity = 0;
         meshObj.halo.material.opacity = 0;
 
         meshObj.boxMesh.scale.set(1.15, 0.8, 1.15); // Squashed 20%
@@ -1483,14 +1808,17 @@ function gameLoop(currentTime) {
   camera.position.y += (playerGroup.position.y + camHeight - camera.position.y) * 0.1;
   camera.lookAt(playerGroup.position.x, playerGroup.position.y + 1.2, playerGroup.position.z);
 
-  // Animate pulse ring
+  // Animate pulse ring & expanding golden dome
   if (pulseAnim > 0) {
-    pulseAnim -= 0.04;
+    pulseAnim -= 0.035;
     const scale = (1.0 - pulseAnim) * 12 + 0.1;
     pulseRing.scale.set(scale, scale, 1);
-    pulseRingMat.opacity = pulseAnim;
+    pulseRingMat.opacity = pulseAnim * 0.85;
+    pulseDome.scale.set(scale * 0.75, scale * 0.55, scale * 0.75);
+    pulseDomeMat.opacity = pulseAnim * 0.35;
   } else {
     pulseRingMat.opacity = 0;
+    pulseDomeMat.opacity = 0;
   }
 
   // Visual-only ambience
@@ -1512,6 +1840,46 @@ function gameLoop(currentTime) {
   }
   const tNow = Date.now() * 0.001;
   stars.rotation.y = tNow * 0.002;
+  if (nebulaMesh) nebulaMesh.rotation.y = tNow * 0.0012;
+
+  // Animate 3D volumetric cloud puffs drifting around the islands
+  for (let i = 0; i < cloudPuffs.length; i++) {
+    const puff = cloudPuffs[i];
+    puff.userData.ang += puff.userData.speed * 0.004;
+    const dist = Math.hypot(puff.userData.origX, puff.userData.origZ);
+    puff.position.x = Math.cos(puff.userData.ang) * dist;
+    puff.position.z = Math.sin(puff.userData.ang) * dist;
+    puff.rotation.y += 0.0015;
+  }
+
+  // Animate falling sakura blossom petals
+  const leafAttr = leafGeo.attributes.position;
+  for (let i = 0; i < LEAF_COUNT; i++) {
+    leafAttr.array[i * 3 + 1] -= leafSpeeds[i] * 0.035;
+    leafAttr.array[i * 3] += Math.sin(tNow * 1.5 + i) * 0.015;
+    if (leafAttr.array[i * 3 + 1] < -0.5) {
+      leafAttr.array[i * 3 + 1] = 16.0;
+      leafAttr.array[i * 3] = (Math.random() - 0.5) * 90;
+      leafAttr.array[i * 3 + 2] = (Math.random() - 0.5) * 90;
+    }
+  }
+  leafAttr.needsUpdate = true;
+
+  // Animate floating fairy fireflies
+  const ffAttr = fireflyGeo.attributes.position;
+  for (let i = 0; i < AMBIENT_FIREFLIES; i++) {
+    ffAttr.array[i * 3] += Math.sin(tNow * 0.8 + i * 1.7) * 0.025;
+    ffAttr.array[i * 3 + 1] += Math.cos(tNow * 1.2 + i * 2.3) * 0.012;
+    ffAttr.array[i * 3 + 2] += Math.sin(tNow * 0.7 + i * 0.9) * 0.025;
+  }
+  ffAttr.needsUpdate = true;
+
+  // Rotate sacred lotus mandala planes for lit lanterns
+  for (const lm of lanternMeshes) {
+    if (lm.mandalaMesh && lm.mandalaMesh.material.opacity > 0) {
+      lm.mandalaMesh.rotation.z += 0.0035;
+    }
+  }
   cloudLayers.forEach((m, i) => {
     m.material.map.offset.x = tNow * 0.004 * (i + 1);
     m.material.map.offset.y = tNow * 0.002 * (i + 1);
