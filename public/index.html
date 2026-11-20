@@ -417,6 +417,9 @@
       <div class="modal-title" id="intro-title">ĐÊM 1 — ĐẢO BẾN</div>
       <div class="modal-story" id="intro-story">"Mây con, hãy mang ánh sáng đom đóm về thắp lại 5 ngọn Đèn Lồng Lớn. Hãy cẩn trọng trước lũ Bóng Mực trong sương đen!" — Ông Đăng.</div>
       <button class="btn-primary" onclick="startNight()">Bắt đầu Đêm</button>
+      <div style="margin-top:16px;font-size:13px;color:#ddd;">
+        <label><input type="checkbox" class="easy-toggle" onchange="setEasyMode(this.checked)"> Chế độ Dễ: thắp 1 đèn chỉ cần 5 đom đóm (chỉ giao diện)</label>
+      </div>
     </div>
   </div>
 
@@ -453,6 +456,10 @@
         <div class="settings-row">
           <span>Độ nhạy chuột:</span>
           <input type="range" id="sens-slider" min="0.1" max="1.5" step="0.05" value="0.5" oninput="setMouseSens(this.value)">
+        </div>
+        <div class="settings-row">
+          <span>Chế độ Dễ (5 đom đóm/đèn):</span>
+          <input type="checkbox" class="easy-toggle" onchange="setEasyMode(this.checked)">
         </div>
       </div>
       <div class="modal-actions">

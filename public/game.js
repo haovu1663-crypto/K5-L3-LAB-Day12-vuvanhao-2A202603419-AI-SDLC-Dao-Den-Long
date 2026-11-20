@@ -1,4 +1,20 @@
-import { Simulation, dist2D } from '../src/core/simulation.js';
+import { Simulation, dist2D, DEFAULT_TUNING } from '../src/core/simulation.js';
+
+// Chế độ "Dễ" (chỉ giao diện, tắt mặc định): thắp đèn với 5 đom đóm.
+// Headless / Test Contract luôn dùng lantern_cost = 10 theo Ticket-02.
+function easyModeOn() {
+  return localStorage.getItem('dao_easy') === '1';
+}
+function getTuning() {
+  const t = { ...DEFAULT_TUNING, score: { ...DEFAULT_TUNING.score } };
+  if (easyModeOn()) t.lantern_cost = 5;
+  return t;
+}
+window.setEasyMode = function (on) {
+  localStorage.setItem('dao_easy', on ? '1' : '0');
+  document.querySelectorAll('.easy-toggle').forEach((el) => (el.checked = on));
+  window.restartCurrentNight();
+};
 
 // --- Web Audio Procedural Sound Effects ---
 class AudioManager {
@@ -158,6 +174,163 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.outputEncoding = THREE.sRGBEncoding;
+
+// ---- Visual-only helpers (không ảnh hưởng logic headless) ----
+function makeGlowTexture(inner, outer) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, inner);
+  grad.addColorStop(0.35, outer);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+const moteGlowTex = makeGlowTexture('rgba(255,246,194,1)', 'rgba(255,229,138,0.45)');
+const lanternGlowTex = makeGlowTexture('rgba(255,233,176,1)', 'rgba(255,179,71,0.4)');
+
+function glowSprite(tex, scale, opacity) {
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const s = new THREE.Sprite(mat);
+  s.scale.set(scale, scale, 1);
+  return s;
+}
+
+function makeCloudTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 90; i++) {
+    const x = rnd() * 512, y = rnd() * 512, r = 30 + rnd() * 70;
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, 'rgba(120,150,190,0.35)');
+    grad.addColorStop(1, 'rgba(120,150,190,0)');
+    g.fillStyle = grad;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(6, 6);
+  return t;
+}
+
+// Stars
+const starsGeo = new THREE.BufferGeometry();
+{
+  const n = 1800;
+  const pos = new Float32Array(n * 3);
+  let s = 12345;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < n; i++) {
+    const th = rnd() * Math.PI * 2;
+    const ph = Math.acos(rnd() * 0.95 + 0.05);
+    const r = 600;
+    pos[i * 3] = r * Math.sin(ph) * Math.cos(th);
+    pos[i * 3 + 1] = r * Math.cos(ph);
+    pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  starsGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+}
+const stars = new THREE.Points(
+  starsGeo,
+  new THREE.PointsMaterial({ color: 0xf5f1e6, size: 1.8, sizeAttenuation: false, fog: false })
+);
+scene.add(stars);
+
+// Moon with halo
+const moon = new THREE.Mesh(
+  new THREE.SphereGeometry(18, 24, 24),
+  new THREE.MeshBasicMaterial({ color: 0xf5f1e6, fog: false })
+);
+moon.position.set(-250, 260, -380);
+scene.add(moon);
+const moonHalo = glowSprite(makeGlowTexture('rgba(245,241,230,0.9)', 'rgba(165,184,208,0.3)'), 140, 0.7);
+moonHalo.position.copy(moon.position);
+scene.add(moonHalo);
+
+// Drifting cloud layers
+const cloudTex = makeCloudTexture();
+const cloudLayers = [];
+for (let i = 0; i < 3; i++) {
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(1400, 1400),
+    new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, opacity: 0.35 - i * 0.08, depthWrite: false })
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.position.y = -8 - i * 3;
+  scene.add(m);
+  cloudLayers.push(m);
+}
+
+// Ambient floating particles (dust / leaves) around the player
+const PARTICLE_N = 140;
+const partGeo = new THREE.BufferGeometry();
+const partPos = new Float32Array(PARTICLE_N * 3);
+for (let i = 0; i < PARTICLE_N; i++) {
+  partPos[i * 3] = (Math.random() - 0.5) * 60;
+  partPos[i * 3 + 1] = Math.random() * 14;
+  partPos[i * 3 + 2] = (Math.random() - 0.5) * 60;
+}
+partGeo.setAttribute('position', new THREE.BufferAttribute(partPos, 3));
+const particles = new THREE.Points(
+  partGeo,
+  new THREE.PointsMaterial({
+    color: 0xffe58a, size: 0.18, transparent: true, opacity: 0.6,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  })
+);
+scene.add(particles);
+
+// Visual-only decoration (cây, đá) – tất định, không dùng RNG của simulation
+function addDecor(night) {
+  let s = 99 + night;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.9 });
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x24493f, roughness: 0.85 });
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x5b5f6e, roughness: 0.95 });
+  const centers = night === 2 ? [[0, 0, 28], [70, 0, 28]] : [[0, 0, night === 3 ? 45 : 40]];
+  for (const [cx, cz, R] of centers) {
+    const count = night === 2 ? 14 : 22;
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2 + rnd() * 0.2;
+      const r = R - 1.5 - rnd() * 2.5;
+      const x = cx + r * Math.cos(a);
+      const z = cz + r * Math.sin(a);
+      if (night === 2 && x > 24 && x < 46 && Math.abs(z) < 5) continue; // chừa cầu
+      const g = new THREE.Group();
+      if (rnd() > 0.35) {
+        const h = 2.2 + rnd() * 1.6;
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, h, 8), trunkMat);
+        trunk.position.y = h / 2;
+        const crown = new THREE.Mesh(new THREE.ConeGeometry(1.1 + rnd() * 0.5, 2.4, 8), leafMat);
+        crown.position.y = h + 0.6;
+        g.add(trunk, crown);
+      } else {
+        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6 + rnd() * 0.7, 0), rockMat);
+        rock.position.y = 0.3;
+        rock.scale.y = 0.7;
+        g.add(rock);
+      }
+      g.position.set(x, 0, z);
+      g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      islandGroup.add(g);
+    }
+  }
+}
 
 // Dynamic Ambient Light
 const ambientLight = new THREE.AmbientLight(0x404560, 0.25);
@@ -165,7 +338,15 @@ scene.add(ambientLight);
 
 const moonLight = new THREE.DirectionalLight(0xa5b8d0, 0.7);
 moonLight.position.set(30, 80, 40);
+moonLight.castShadow = true;
+moonLight.shadow.mapSize.set(2048, 2048);
+moonLight.shadow.camera.left = -45;
+moonLight.shadow.camera.right = 45;
+moonLight.shadow.camera.top = 45;
+moonLight.shadow.camera.bottom = -45;
+moonLight.shadow.camera.far = 200;
 scene.add(moonLight);
+scene.add(moonLight.target);
 
 // Island Environment Group
 let islandGroup = new THREE.Group();
@@ -189,6 +370,7 @@ function buildIsland3D(night) {
   clouds.rotation.x = -Math.PI / 2;
   clouds.position.y = -12;
   islandGroup.add(clouds);
+  addDecor(night);
 
   const grassMat = new THREE.MeshStandardMaterial({ color: 0x2f5d50, roughness: 0.8 });
   const sandMat = new THREE.MeshStandardMaterial({ color: 0xc9b48a, roughness: 0.9 });
@@ -334,6 +516,11 @@ function createPlayerMesh() {
   smallLantern.position.set(0.35, 1.35, 0.25);
   playerGroup.add(smallLantern);
 
+  const pHalo = glowSprite(lanternGlowTex, 2.4, 0.9);
+  pHalo.position.set(0.35, 1.35, 0.25);
+  playerGroup.add(pHalo);
+  playerGroup.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+
   const pLight = new THREE.PointLight(0xffb347, 1.2, 8);
   pLight.position.set(0.35, 1.35, 0.25);
   playerGroup.add(pLight);
@@ -399,6 +586,11 @@ function rebuildLanterns() {
     circle.position.y = 0.05;
     lGroup.add(circle);
 
+    const halo = glowSprite(lanternGlowTex, 9, 0);
+    halo.position.y = 3.6;
+    lGroup.add(halo);
+    lGroup.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+
     scene.add(lGroup);
     lanternMeshes.push({
       id: lData.id,
@@ -406,6 +598,7 @@ function rebuildLanterns() {
       boxMesh: box,
       light: light,
       circleMesh: circle,
+      halo,
     });
   }
 }
@@ -417,6 +610,7 @@ function updateMotesVisual() {
     const geo = new THREE.SphereGeometry(0.2, 12, 12);
     const mat = new THREE.MeshBasicMaterial({ color: 0xfff6c2 });
     const mesh = new THREE.Mesh(geo, mat);
+    mesh.add(glowSprite(moteGlowTex, 2.2, 0.9));
     scene.add(mesh);
     moteMeshes.push(mesh);
   }
@@ -719,11 +913,13 @@ function updateHUD() {
         meshObj.boxMesh.material.emissiveIntensity = 1.0;
         meshObj.light.intensity = 2.5;
         meshObj.circleMesh.material.opacity = 0.5;
+        meshObj.halo.material.opacity = 0.85 + Math.sin(Date.now() * 0.004) * 0.1;
       } else {
         meshObj.boxMesh.material.color.setHex(0x5b5f6e);
         meshObj.boxMesh.material.emissiveIntensity = 0;
         meshObj.light.intensity = 0;
         meshObj.circleMesh.material.opacity = 0;
+        meshObj.halo.material.opacity = 0;
       }
     }
   }
@@ -794,7 +990,8 @@ window.setMouseSens = function (val) {
 };
 
 function loadNight(night) {
-  sim = new Simulation({ seed: Date.now(), night });
+  sim = new Simulation({ seed: Date.now(), night, tuning: getTuning() });
+  document.querySelectorAll('.easy-toggle').forEach((el) => (el.checked = easyModeOn()));
   buildIsland3D(night);
   rebuildLanterns();
 
@@ -899,6 +1096,24 @@ function gameLoop(currentTime) {
   } else {
     pulseRingMat.opacity = 0;
   }
+
+  // Visual-only ambience
+  const tNow = Date.now() * 0.001;
+  stars.rotation.y = tNow * 0.002;
+  cloudLayers.forEach((m, i) => {
+    m.material.map.offset.x = tNow * 0.004 * (i + 1);
+    m.material.map.offset.y = tNow * 0.002 * (i + 1);
+  });
+  particles.position.set(playerGroup.position.x, 0, playerGroup.position.z);
+  const pp = partGeo.attributes.position;
+  for (let i = 0; i < PARTICLE_N; i++) {
+    pp.array[i * 3 + 1] += 0.01 + (i % 5) * 0.002;
+    if (pp.array[i * 3 + 1] > 14) pp.array[i * 3 + 1] = 0;
+  }
+  pp.needsUpdate = true;
+  moonLight.position.set(playerGroup.position.x + 30, 80, playerGroup.position.z + 40);
+  moonLight.target.position.copy(playerGroup.position);
+  moonLight.target.updateMatrixWorld();
 
   updateMotesVisual();
   updateShadesVisual();
