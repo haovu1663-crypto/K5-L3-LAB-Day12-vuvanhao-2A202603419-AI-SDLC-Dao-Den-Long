@@ -80,10 +80,19 @@ function main() {
     }
   }
 
+  // Load tuning from game.contract.json
+  let tuning = null;
+  try {
+    const contractPath = path.resolve('game.contract.json');
+    const contractData = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+    tuning = contractData.tuning;
+  } catch {}
+
   // Initialize simulation
   const sim = new Simulation({
     seed: options.seed,
     night: options.night,
+    tuning: tuning,
   });
 
   if (scenarioData) {

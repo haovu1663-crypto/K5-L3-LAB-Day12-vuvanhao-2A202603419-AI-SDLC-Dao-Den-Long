@@ -1,6 +1,4 @@
 import { PRNG } from './prng.js';
-import fs from 'fs';
-import path from 'path';
 
 export function round3(val) {
   return Number(Number(val).toFixed(3));
@@ -12,14 +10,44 @@ export function dist2D(p1, p2) {
   return Math.sqrt(dx * dx + dz * dz);
 }
 
+export const DEFAULT_TUNING = {
+  player_speed: 6.0,
+  carry_capacity: 10,
+  lantern_cost: 5,
+  lantern_count_night1: 5,
+  pickup_radius: 1.5,
+  interact_radius: 2.5,
+  pulse_cost: 1,
+  pulse_radius: 5.0,
+  night1_duration_s: 300,
+  flames: 3,
+  invuln_s: 1.5,
+  hit_drop_ratio: 0.5,
+  pulse_stun_s: 3.0,
+  pulse_push_m: 3.0,
+  pulse_cooldown_s: 1.0,
+  safe_radius: 6.0,
+  shade_speed: 3.5,
+  shade_hit_radius: 1.2,
+  fall_enabled: false,
+  score: {
+    per_mote: 10,
+    per_lantern: 100,
+    per_stun: 20,
+    per_second_left: 1,
+    per_flame_left: 50,
+  },
+};
+
 export class Simulation {
   constructor(options = {}) {
     this.seed = options.seed !== undefined ? options.seed : 42;
     this.rng = new PRNG(this.seed);
     this.night = options.night || 1;
 
-    // Load tuning from game.contract.json if not provided
-    this.tuning = options.tuning || this.loadDefaultTuning();
+    // Use passed tuning or default
+    this.tuning = options.tuning || { ...DEFAULT_TUNING };
+
 
     this.tick = 0;
     this.sim_tick = 0;
@@ -60,43 +88,6 @@ export class Simulation {
 
     // Initialize default island layout
     this.initDefaultWorld();
-  }
-
-  loadDefaultTuning() {
-    try {
-      const contractPath = path.resolve('game.contract.json');
-      const data = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
-      return data.tuning;
-    } catch {
-      return {
-        player_speed: 6.0,
-        carry_capacity: 10,
-        lantern_cost: 5,
-        lantern_count_night1: 5,
-        pickup_radius: 1.5,
-        interact_radius: 2.5,
-        pulse_cost: 1,
-        pulse_radius: 5.0,
-        night1_duration_s: 300,
-        flames: 3,
-        invuln_s: 1.5,
-        hit_drop_ratio: 0.5,
-        pulse_stun_s: 3.0,
-        pulse_push_m: 3.0,
-        pulse_cooldown_s: 1.0,
-        safe_radius: 6.0,
-        shade_speed: 3.5,
-        shade_hit_radius: 1.2,
-        fall_enabled: false,
-        score: {
-          per_mote: 10,
-          per_lantern: 100,
-          per_stun: 20,
-          per_second_left: 1,
-          per_flame_left: 50,
-        },
-      };
-    }
   }
 
   createDefaultLanterns() {

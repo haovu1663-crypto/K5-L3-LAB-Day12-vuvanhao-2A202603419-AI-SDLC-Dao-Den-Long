@@ -20,3 +20,16 @@
 - Bộ unit test 6 kịch bản `tests/test_simulation.js` kiểm tra tất định, nhặt đom đóm, nạp đèn, pulse đẩy lùi Bóng Mực, Bóng Mực tấn công, điều kiện thắng/thua. Toàn bộ test pass 100%.
 - Chạy thử xuất file `docs/proof/sample_headless.jsonl`.
 - Ước tính token sử dụng: ~3,500 tokens.
+
+### Bước 4: Tích hợp Giao diện 3D (Three.js) & Web Server
+- Tải Three.js r128 phục vụ offline 100% không phụ thuộc internet tại `public/three.min.js`.
+- Xây dựng Web Server HTTP Node.js gọn nhẹ không dependency ngoài tại `src/server.js`.
+- Xây dựng giao diện web game 3D hoàn chỉnh `public/index.html` và `public/game.js`:
+  - Khung cảnh đảo tròn Đảo Bến giữa biển mây, ánh sáng cổ tích ấm áp ban đêm.
+  - Nhân vật Mây đội nón lá gắn đèn lồng nhỏ.
+  - 5 cột Đèn Lồng Lớn phát sáng cam ấm và vùng an toàn khi nạp đủ đom đóm.
+  - Đom đóm bay lơ lửng, Bóng Mực tím đen rượt đuổi, hiệu ứng sóng xung kích Tỏa Sáng (Pulse).
+  - Tích hợp hiệu ứng âm thanh procedural bằng Web Audio API.
+  - HUD đầy đủ: Flames (máu), đom đóm mang theo, 5 đèn lồng, thời gian, điểm số.
+- Đã khởi động máy chủ thành công tại `http://localhost:3000`.
+- Ước tính token sử dụng: ~4,500 tokens.

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Đảo Đèn Lồng — 3D Game</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #090a10;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #fff;
+    }
+    #canvas3d {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    /* HUD Overlays */
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px;
+    }
+    .hud-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .stat-card {
+      background: rgba(14, 18, 32, 0.75);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 180, 70, 0.25);
+      border-radius: 14px;
+      padding: 12px 20px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #f7ba52;
+      margin-bottom: 2px;
+    }
+    .stat-val {
+      font-size: 22px;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 0 10px rgba(255,180,70,0.5);
+    }
+    .flames-container {
+      display: flex;
+      gap: 6px;
+      font-size: 24px;
+    }
+    .flame-icon.active {
+      filter: drop-shadow(0 0 8px #ff7b00);
+    }
+    .flame-icon.lost {
+      filter: grayscale(1) opacity(0.3);
+    }
+    .lanterns-status {
+      display: flex;
+      gap: 10px;
+    }
+    .lantern-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 12px;
+      border: 2px solid rgba(255, 190, 80, 0.3);
+      background: rgba(20, 20, 35, 0.8);
+      color: #888;
+      transition: all 0.3s ease;
+    }
+    .lantern-badge.lit {
+      border-color: #ffaa00;
+      background: #ff8800;
+      color: #1a0800;
+      box-shadow: 0 0 16px #ff9900;
+    }
+    .hud-controls-card {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      background: rgba(14, 18, 32, 0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 12px 18px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #ddd;
+    }
+    .hud-controls-card kbd {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      color: #ffca58;
+      font-weight: bold;
+    }
+    /* Notification banner */
+    #banner {
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 140, 0, 0.9);
+      color: #fff;
+      padding: 8px 24px;
+      border-radius: 30px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      box-shadow: 0 0 20px rgba(255, 140, 0, 0.6);
+      pointer-events: none;
+    }
+    /* Modal Win / Defeat */
+    #modal-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(7, 9, 18, 0.85);
+      backdrop-filter: blur(12px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      z-index: 100;
+    }
+    .modal-box {
+      background: linear-gradient(135deg, rgba(25, 30, 55, 0.95), rgba(15, 18, 35, 0.95));
+      border: 2px solid rgba(255, 180, 50, 0.5);
+      border-radius: 20px;
+      padding: 40px;
+      text-align: center;
+      max-width: 480px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+    }
+    .modal-title {
+      font-size: 32px;
+      margin-bottom: 12px;
+      color: #ffb834;
+      text-shadow: 0 0 20px rgba(255, 180, 50, 0.6);
+    }
+    .modal-desc {
+      font-size: 16px;
+      color: #ccc;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .modal-score {
+      font-size: 20px;
+      margin-bottom: 30px;
+      color: #fff;
+    }
+    .modal-score span {
+      font-size: 32px;
+      font-weight: bold;
+      color: #ffca42;
+    }
+    .btn-restart {
+      background: linear-gradient(135deg, #ff8c00, #ff5500);
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      padding: 14px 36px;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(255, 100, 0, 0.5);
+      transition: all 0.2s;
+    }
+    .btn-restart:hover {
+      transform: scale(1.05);
+      box-shadow: 0 8px 30px rgba(255, 140, 0, 0.8);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas3d"></canvas>
+
+  <div id="hud">
+    <div class="hud-header">
+      <!-- Flames / Health & Score -->
+      <div class="stat-card">
+        <div class="stat-item">
+          <div class="stat-label">Ngọn lửa (Máu)</div>
+          <div class="flames-container" id="flames-container">
+            <span class="flame-icon active">🔥</span>
+            <span class="flame-icon active">🔥</span>
+            <span class="flame-icon active">🔥</span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Đom đóm mang theo</div>
+          <div class="stat-val" id="carried-val">0 / 10</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Điểm số</div>
+          <div class="stat-val" id="score-val">0</div>
+        </div>
+      </div>
+
+      <!-- Time & Lanterns -->
+      <div class="stat-card">
+        <div class="stat-item">
+          <div class="stat-label">Thời gian Đêm 1</div>
+          <div class="stat-val" id="time-val">05:00</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">5 Đèn Lồng Lớn</div>
+          <div class="lanterns-status" id="lanterns-list">
+            <div class="lantern-badge" id="badge-L1">L1</div>
+            <div class="lantern-badge" id="badge-L2">L2</div>
+            <div class="lantern-badge" id="badge-L3">L3</div>
+            <div class="lantern-badge" id="badge-L4">L4</div>
+            <div class="lantern-badge" id="badge-L5">L5</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="banner">Đã thắp sáng Đèn Lồng!</div>
+
+    <div class="hud-controls-card">
+      <div><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / Mũi tên: Di chuyển</div>
+      <div><kbd>E</kbd>: Nạp đom đóm thắp Đèn Lồng</div>
+      <div><kbd>Q</kbd>: Tỏa sáng (Pulse) xua Bóng Mực (-1 đom đóm)</div>
+      <div><kbd>Chuột</kbd>: Xoay camera 3D</div>
+      <div><kbd>R</kbd>: Chơi lại</div>
+    </div>
+  </div>
+
+  <div id="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-title" id="modal-title">CHIẾN THẮNG!</div>
+      <div class="modal-desc" id="modal-desc">Bạn đã thắp sáng toàn bộ 5 Đèn Lồng Lớn trên Đảo Bến, xua tan sương đen!</div>
+      <div class="modal-score">Tổng điểm: <span id="final-score">0</span></div>
+      <button class="btn-restart" id="btn-restart" onclick="restartGame()">Chơi lại</button>
+    </div>
+  </div>
+
+  <script src="/public/three.min.js"></script>
+  <script type="module" src="/public/game.js"></script>
+</body>
+</html>
