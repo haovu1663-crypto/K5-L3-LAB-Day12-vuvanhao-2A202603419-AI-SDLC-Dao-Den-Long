@@ -419,7 +419,7 @@
       </div>
     </div>
 
-    <!-- Bottom Right: Cooldowns -->
+    <!-- Bottom Right: Cooldowns & Skills -->
     <div class="hud-bottom-right">
       <div class="action-btn-ui" id="btn-dash">
         <span class="key-badge">SHIFT / F</span>
@@ -431,12 +431,17 @@
         <span class="action-name">TỎA SÁNG</span>
         <div class="cd-overlay" id="cd-pulse"></div>
       </div>
+      <div class="action-btn-ui" id="btn-blast" style="cursor: pointer; border-color: rgba(255, 230, 110, 0.4);" title="Nhặt 1 đom đóm được chưởng 1 lần đẩy lùi quái (Phím R hoặc Chuột Phải)">
+        <span class="key-badge" style="color: #FFE58A;">R / Chuột Phải</span>
+        <span class="action-name" style="color: #FFE58A;">CHƯỞNG</span>
+        <span id="blast-charges-val" style="font-size: 13px; font-weight: 800; color: #FFF6C2; margin-top: 2px;">0</span>
+      </div>
     </div>
 
     <!-- Bottom Left: Controls -->
     <div class="controls-hint">
       <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>: Di chuyển · <kbd>Space</kbd>: Nhảy</div>
-      <div><kbd>Shift</kbd>/<kbd>F</kbd>: Lướt · <kbd>Q</kbd>: Tỏa Sáng (3 đom đóm)</div>
+      <div><kbd>Shift</kbd>/<kbd>F</kbd>: Lướt · <kbd>Q</kbd>: Tỏa Sáng · <kbd>R</kbd>/Chuột Phải: Chưởng Đom Đóm</div>
       <div><kbd>E</kbd>: Nạp đèn · <kbd>Esc</kbd>/<kbd>P</kbd>: Tạm dừng</div>
     </div>
   </div>

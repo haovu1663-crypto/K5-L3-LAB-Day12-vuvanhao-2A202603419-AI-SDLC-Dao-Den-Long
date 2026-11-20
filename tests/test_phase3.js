@@ -263,6 +263,44 @@ function testDawnWinAndLoss() {
   console.log('✓ Dawn win & loss test passed!');
 }
 
+// Test 8: Firefly Blast skill (1 charge per mote picked, knocks monsters far away)
+function testFireflyBlastSkill() {
+  console.log('Testing Firefly Blast skill (1 charge per mote picked, pushes monster far away)...');
+  const sim = new Simulation({ seed: 42, night: 1 });
+  assert.strictEqual(sim.player.blast_charges, 0);
+
+  // Setup: 1 mote right on player, 1 shade 4m ahead
+  sim.applyScenario({
+    player: { pos: [0, 0, 0], carried: 0, blast_charges: 0 },
+    motes: [[0, 0, 0.5]],
+    shades: [{ id: 'S1', pos: [0, 0, 4.0], state: 'wander' }],
+    random_motes: false,
+    random_shades: false,
+  });
+
+  // Step 1: Pick up mote -> blast_charges increments to 1
+  sim.step();
+  assert.strictEqual(sim.player.carried, 1);
+  assert.strictEqual(sim.player.blast_charges, 1, 'Picking up 1 mote must award 1 blast charge');
+
+  // Step 2: Cast blast in +Z direction (forward towards shade)
+  const castSuccess = sim.castBlast(0, 1, 14.0);
+  assert.strictEqual(castSuccess, true);
+  assert.strictEqual(sim.player.blast_charges, 0, 'Casting blast must consume 1 blast charge');
+
+  // Check shade is stunned and pushed far away in +Z
+  const shade = sim.shades[0];
+  assert.strictEqual(shade.state, 'stunned');
+  assert.strictEqual(shade.push_ticks_left, 20);
+  assert.ok(shade.push_vel[1] > 0, 'Shade push velocity must be in +Z direction');
+
+  // Step 3: Attempting to blast with 0 charges returns false
+  const noChargeCast = sim.castBlast(0, 1, 14.0);
+  assert.strictEqual(noChargeCast, false);
+
+  console.log('✓ Firefly Blast skill test passed!');
+}
+
 testFuelDecayAndLanternOut();
 testRefuelMechanics();
 testRelightMechanics();
@@ -270,5 +308,6 @@ testShadeDrainAndPulseBonus();
 testSafePushOnRefuel();
 testDynamicCapacity();
 testDawnWinAndLoss();
+testFireflyBlastSkill();
 
-console.log('\nALL 7 PHASE 3 FEATURE TESTS PASSED CLEANLY (CONTRACT v1.2)!');
+console.log('\nALL 8 PHASE 3 FEATURE TESTS PASSED CLEANLY (CONTRACT v1.2)!');

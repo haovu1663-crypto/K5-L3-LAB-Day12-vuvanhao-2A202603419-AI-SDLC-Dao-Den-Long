@@ -115,6 +115,7 @@ export class Simulation {
       carried: 0,
       flames: this.tuning.flames || 3,
       successful_lights: 0,
+      blast_charges: 0,
       invuln_ticks: 0,
       dash_cd_ticks: 0,
       dash_active_ticks: 0,
@@ -155,6 +156,7 @@ export class Simulation {
       dash: false,
       interact: false,
       pulse: false,
+      blast: false,
       pause: false,
     };
     this.prevInput = { ...this.currentInput };
@@ -372,9 +374,10 @@ export class Simulation {
       this.motes = [];
       if (scenario.motes) {
         for (const m of scenario.motes) {
+          const pos = Array.isArray(m) ? m : (m.pos || [0, 0, 0]);
           this.motes.push({
             id: `M${this.nextMoteId++}`,
-            pos: [m[0], m[1] !== undefined ? m[1] : 0, m[2]],
+            pos: [pos[0], pos[1] !== undefined ? pos[1] : 0, pos[2]],
             kind: 'random',
             ttl_ticks: null,
             active: true,
@@ -567,10 +570,17 @@ export class Simulation {
     // --- STEP 6: Update Safe Zones ---
     this.updateSafeZones(dt);
 
-    // --- STEP 7: Pulse (Tỏa Sáng) ---
+    // --- STEP 7: Pulse (Tỏa Sáng) & Firefly Blast (Chưởng Đom Đóm) ---
     const pulseTriggered = this.currentInput.pulse && !this.prevInput.pulse;
     if (pulseTriggered && this.player.fall_wait_ticks <= 0) {
       this.handlePulse();
+    }
+    const blastTriggered = this.currentInput.blast && !this.prevInput.blast;
+    if (blastTriggered && this.player.fall_wait_ticks <= 0) {
+      const rad = ((this.currentInput.cam_yaw_deg || 0) * Math.PI) / 180;
+      const fwdX = Math.sin(rad);
+      const fwdZ = Math.cos(rad);
+      this.castBlast(fwdX, fwdZ, 14.0);
     }
 
     // --- STEP 8: Move Shades & Drifters ---
@@ -740,13 +750,14 @@ export class Simulation {
         if (this.player.carried < capacity) {
           m.active = false;
           this.player.carried += 1;
+          this.player.blast_charges = (this.player.blast_charges || 0) + 1;
           // Ticket-03 [THAY THẾ]: Nhặt đom đóm không cộng điểm; chỉ cộng khi nạp/châm dầu vào đèn (+5)
 
           this.pendingEvents.push({
             type: 'event',
             tick: this.tick,
             name: 'mote_picked',
-            data: { carried: this.player.carried },
+            data: { carried: this.player.carried, blast_charges: this.player.blast_charges },
           });
         }
       }
@@ -988,6 +999,64 @@ export class Simulation {
       name: 'pulse',
       data: { stunned_ids: stunnedIds },
     });
+  }
+
+  castBlast(dirX = 0, dirZ = 1, pushDist = 14.0) {
+    if ((this.player.blast_charges || 0) <= 0) return false;
+    this.player.blast_charges -= 1;
+
+    const len = Math.hypot(dirX, dirZ) || 1;
+    const nx = dirX / len;
+    const nz = dirZ / len;
+
+    const hitShades = [];
+    for (const s of this.shades) {
+      const dx = s.pos[0] - this.player.pos[0];
+      const dz = s.pos[2] - this.player.pos[2];
+      const d = Math.hypot(dx, dz);
+      if (d <= 15.0) {
+        const dot = (dx * nx + dz * nz) / (d || 1);
+        if (dot > 0.15 || d < 3.5) {
+          s.state = 'stunned';
+          s.state_ticks_left = 120;
+          s.push_ticks_left = 20;
+          s.target_lantern_id = null;
+          const pDirX = d > 0.01 ? dx / d : nx;
+          const pDirZ = d > 0.01 ? dz / d : nz;
+          s.push_vel = [pDirX * (pushDist / 20), pDirZ * (pushDist / 20)];
+          hitShades.push(s.id);
+        }
+      }
+    }
+
+    for (const dr of this.drifters) {
+      const dx = dr.pos[0] - this.player.pos[0];
+      const dz = dr.pos[2] - this.player.pos[2];
+      const d = Math.hypot(dx, dz);
+      if (d <= 15.0) {
+        const dot = (dx * nx + dz * nz) / (d || 1);
+        if (dot > 0.15 || d < 3.5) {
+          dr.flee_ticks_left = 120;
+          const pDirX = d > 0.01 ? dx / d : nx;
+          const pDirZ = d > 0.01 ? dz / d : nz;
+          dr.pos[0] = round3(dr.pos[0] + pDirX * pushDist);
+          dr.pos[2] = round3(dr.pos[2] + pDirZ * pushDist);
+        }
+      }
+    }
+
+    this.pendingEvents.push({
+      type: 'event',
+      tick: this.tick,
+      name: 'blast',
+      data: {
+        charges_left: this.player.blast_charges,
+        hit_shades: hitShades,
+        dir: [round3(nx), round3(nz)],
+      },
+    });
+
+    return true;
   }
 
   updateShades(dt) {

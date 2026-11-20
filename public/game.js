@@ -196,6 +196,35 @@ class AudioManager {
     osc.start();
     osc.stop(this.ctx.currentTime + 0.2);
   }
+  playBlast() {
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(780, now);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.32);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.32);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.32);
+
+      const sub = this.ctx.createOscillator();
+      const subGain = this.ctx.createGain();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(220, now);
+      sub.frequency.exponentialRampToValueAtTime(45, now + 0.35);
+      subGain.gain.setValueAtTime(0.35, now);
+      subGain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+      sub.connect(subGain);
+      subGain.connect(this.masterGain);
+      sub.start(now);
+      sub.stop(now + 0.35);
+    } catch (_) {}
+  }
 }
 
 const audio = new AudioManager();
@@ -1403,6 +1432,69 @@ function triggerPulseVisual() {
   pulseAnim = 1.0;
 }
 
+// Firefly Blast Visuals (Chưởng Đom Đóm)
+const activeBlasts = [];
+function spawnBlastVisual(startX, startY, startZ, dirX, dirZ) {
+  const group = new THREE.Group();
+  group.position.set(startX, startY, startZ);
+
+  // Core brilliant white/gold sphere
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(0.35, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  group.add(core);
+
+  // Outer blazing golden aura
+  const aura = new THREE.Mesh(
+    new THREE.SphereGeometry(0.75, 16, 16),
+    new THREE.MeshBasicMaterial({
+      color: 0xffea75,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+  );
+  group.add(aura);
+
+  // Dynamic light illuminating terrain
+  const light = new THREE.PointLight(0xffea75, 3.5, 12);
+  group.add(light);
+
+  // Whirling energy ring around projectile
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.5, 0.9, 24),
+    new THREE.MeshBasicMaterial({
+      color: 0xffaa00,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+  );
+  ring.rotation.x = Math.PI / 2;
+  group.add(ring);
+
+  scene.add(group);
+
+  activeBlasts.push({
+    group,
+    ring,
+    dirX,
+    dirZ,
+    distanceTraveled: 0,
+    maxDistance: 16.0,
+    speed: 34.0, // 34 m/s
+  });
+}
+
+function triggerBlastInput() {
+  keys['r'] = true;
+  setTimeout(() => { keys['r'] = false; }, 80);
+}
+
 // Input Handling
 const keys = {};
 let camYaw = 0;
@@ -1426,8 +1518,16 @@ window.addEventListener('keyup', (e) => {
 
 window.addEventListener('mousedown', (e) => {
   audio.init();
-  isMouseDown = true;
-  mouseX = e.clientX;
+  if (e.button === 0) {
+    isMouseDown = true;
+    mouseX = e.clientX;
+  } else if (e.button === 2) {
+    triggerBlastInput();
+  }
+});
+window.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  triggerBlastInput();
 });
 window.addEventListener('mouseup', () => (isMouseDown = false));
 window.addEventListener('mousemove', (e) => {
@@ -1533,6 +1633,21 @@ function updateHUD() {
 
   const pulseRatio = Math.min(1.0, (sim.player.pulse_cd_ticks / 180));
   cdPulseEl.style.height = `${pulseRatio * 100}%`;
+
+  // Firefly Blast Charges HUD
+  const blastValEl = document.getElementById('blast-charges-val');
+  const btnBlastEl = document.getElementById('btn-blast');
+  const blastCharges = sim.player.blast_charges || 0;
+  if (blastValEl) blastValEl.textContent = blastCharges;
+  if (btnBlastEl) {
+    if (blastCharges > 0) {
+      btnBlastEl.style.borderColor = '#FFD700';
+      btnBlastEl.style.boxShadow = '0 0 16px rgba(255, 215, 0, 0.75)';
+    } else {
+      btnBlastEl.style.borderColor = 'rgba(255, 230, 110, 0.35)';
+      btnBlastEl.style.boxShadow = '0 4px 20px rgba(0,0,0,0.5)';
+    }
+  }
 
   // Charm Active Banner
   if (sim.player.charm_ticks > 0) {
@@ -1701,6 +1816,11 @@ window.setMouseSens = function (val) {
 };
 
 function loadNight(night) {
+  for (const b of activeBlasts) {
+    scene.remove(b.group);
+  }
+  activeBlasts.length = 0;
+
   sim = new Simulation({ seed: Date.now(), night, tuning: getTuning() });
   document.querySelectorAll('.easy-toggle').forEach((el) => (el.checked = easyModeOn()));
   document.querySelectorAll('.cb-toggle').forEach((el) => (el.checked = isColorblind));
@@ -1718,6 +1838,15 @@ function loadNight(night) {
   introTitle.textContent = titles[night];
   introStory.textContent = stories[night];
   modalIntro.style.display = 'flex';
+}
+
+const btnBlastUi = document.getElementById('btn-blast');
+if (btnBlastUi) {
+  btnBlastUi.addEventListener('click', (e) => {
+    e.stopPropagation();
+    audio.init();
+    triggerBlastInput();
+  });
 }
 
 // Initial Map Build
@@ -1749,6 +1878,7 @@ function gameLoop(currentTime) {
 
   const interact = !!keys['e'];
   const pulse = !!keys['q'];
+  const blast = !!keys['r'];
   const dash = !!keys['shift'] || !!keys['f'];
   const jump = !!keys[' '];
 
@@ -1761,6 +1891,7 @@ function gameLoop(currentTime) {
         dash,
         interact,
         pulse,
+        blast,
       });
 
       const events = sim.step();
@@ -1773,6 +1904,13 @@ function gameLoop(currentTime) {
         if (ev.name === 'pulse') {
           audio.playPulse();
           triggerPulseVisual();
+        }
+        if (ev.name === 'blast') {
+          audio.playBlast();
+          const rad = playerGroup.rotation.y;
+          const dirX = Math.sin(rad);
+          const dirZ = Math.cos(rad);
+          spawnBlastVisual(playerGroup.position.x, playerGroup.position.y + 1.2, playerGroup.position.z, dirX, dirZ);
         }
         if (ev.name === 'dash') audio.playDash();
         if (ev.name === 'charm_picked') audio.playCharm();
@@ -1819,6 +1957,21 @@ function gameLoop(currentTime) {
   } else {
     pulseRingMat.opacity = 0;
     pulseDomeMat.opacity = 0;
+  }
+
+  // Animate firefly blast projectiles (Chưởng Đom Đóm)
+  for (let i = activeBlasts.length - 1; i >= 0; i--) {
+    const b = activeBlasts[i];
+    const stepDist = b.speed * (delta * 0.001);
+    b.group.position.x += b.dirX * stepDist;
+    b.group.position.z += b.dirZ * stepDist;
+    b.ring.rotation.z += 0.25;
+    b.distanceTraveled += stepDist;
+
+    if (b.distanceTraveled >= b.maxDistance) {
+      scene.remove(b.group);
+      activeBlasts.splice(i, 1);
+    }
   }
 
   // Visual-only ambience
