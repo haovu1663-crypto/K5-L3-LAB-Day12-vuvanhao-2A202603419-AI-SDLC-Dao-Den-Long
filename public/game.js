@@ -16,6 +16,22 @@ window.setEasyMode = function (on) {
   window.restartCurrentNight();
 };
 
+// Chế độ "Bảng màu dễ phân biệt" (Colorblind Mode - Ticket-03 Section 6)
+let isColorblind = localStorage.getItem('dao_cb') === '1';
+window.setColorblindMode = function (on) {
+  isColorblind = !!on;
+  localStorage.setItem('dao_cb', isColorblind ? '1' : '0');
+  if (isColorblind) {
+    document.body.classList.add('colorblind');
+  } else {
+    document.body.classList.remove('colorblind');
+  }
+  document.querySelectorAll('.cb-toggle').forEach((el) => (el.checked = isColorblind));
+};
+if (isColorblind) {
+  document.body.classList.add('colorblind');
+}
+
 // --- Web Audio Procedural Sound Effects ---
 class AudioManager {
   constructor() {
@@ -95,6 +111,34 @@ class AudioManager {
     gain.connect(this.masterGain);
     osc.start();
     osc.stop(this.ctx.currentTime + 0.3);
+  }
+  playRefuel() {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(783.99, this.ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.15);
+  }
+  playLanternOut() {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(240, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(70, this.ctx.currentTime + 0.35);
+    gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.35);
   }
   playDash() {
     if (!this.ctx) return;
@@ -799,6 +843,37 @@ function rebuildLanterns() {
     const halo = glowSprite(lanternGlowTex, 9, 0);
     halo.position.y = 3.6;
     lGroup.add(halo);
+
+    // 3D Fuel Gauge Bar (Ticket-03: Hiển thị thanh dầu trên đèn đang sáng)
+    const fuelBarGroup = new THREE.Group();
+    fuelBarGroup.position.set(0, 5.3, 0);
+
+    const fuelBgGeo = new THREE.BoxGeometry(1.6, 0.22, 0.06);
+    const fuelBgMat = new THREE.MeshBasicMaterial({ color: 0x111118 });
+    const fuelBg = new THREE.Mesh(fuelBgGeo, fuelBgMat);
+    fuelBarGroup.add(fuelBg);
+
+    const fillGeo = new THREE.BoxGeometry(1.5, 0.16, 0.07);
+    fillGeo.translate(0.75, 0, 0); // Origin at left edge for proper scaling
+    const fillMat = new THREE.MeshBasicMaterial({ color: 0x50c878 });
+    const fillMesh = new THREE.Mesh(fillGeo, fillMat);
+    fillMesh.position.set(-0.75, 0, 0.01);
+    fuelBarGroup.add(fillMesh);
+
+    fuelBarGroup.visible = false;
+    lGroup.add(fuelBarGroup);
+
+    // Torn paper patches on unlit lantern (distinguishable without color - Ticket-03 Section 6)
+    const tornPatches = [];
+    const patchMat = new THREE.MeshStandardMaterial({ color: 0x2e3038, roughness: 0.95 });
+    for (let p = 0; p < 3; p++) {
+      const pGeo = new THREE.PlaneGeometry(0.35 + p * 0.1, 0.5 + p * 0.15);
+      const pMesh = new THREE.Mesh(pGeo, patchMat);
+      pMesh.position.set((p - 1) * 0.35, 3.5 + (p % 2) * 0.2, 0.61);
+      lGroup.add(pMesh);
+      tornPatches.push(pMesh);
+    }
+
     lGroup.traverse((o) => { if (o.isMesh) o.castShadow = true; });
 
     scene.add(lGroup);
@@ -806,9 +881,13 @@ function rebuildLanterns() {
       id: lData.id,
       group: lGroup,
       boxMesh: box,
+      roof: roof,
       light: light,
       circleMesh: circle,
       halo,
+      fuelBarGroup,
+      fillMesh,
+      tornPatches,
     });
   }
 }
@@ -896,13 +975,25 @@ function updateShadesVisual() {
       });
     }
 
+    const eyeColor = isColorblind ? 0x00b3ff : 0xdd55ff;
+    const borderEmissive = isColorblind ? 0x00b3ff : 0x7a3cff;
+    sm.leftEye.material.color.setHex(eyeColor);
+    sm.rightEye.material.color.setHex(eyeColor);
+
     if (sData.state === 'stunned') {
       sm.body.material.color.setHex(0x3a3450);
       sm.body.material.emissive.setHex(0x222233);
       sm.group.position.y = sData.pos[1] + Math.sin(Date.now() * 0.02) * 0.1;
+    } else if (sData.state === 'drain') {
+      // Draining state: body pulses dark with intense vortex emissive
+      sm.body.material.color.setHex(0x0a0512);
+      sm.body.material.emissive.setHex(borderEmissive);
+      sm.body.material.emissiveIntensity = 0.85 + Math.sin(Date.now() * 0.02) * 0.35;
+      sm.body.scale.setScalar(1.05 + Math.sin(Date.now() * 0.03) * 0.1);
     } else {
       sm.body.material.color.setHex(0x120a1a);
-      sm.body.material.emissive.setHex(0x7a3cff);
+      sm.body.material.emissive.setHex(borderEmissive);
+      sm.body.material.emissiveIntensity = 0.5;
     }
   }
 }
@@ -1082,20 +1173,38 @@ function updateHUD() {
     flameIcons[i].className = i < sim.player.flames ? 'flame-icon active' : 'flame-icon lost';
   }
 
-  // Lanterns count
+  // Lanterns count & threshold to win at dawn (Ticket-03 Section 3)
   const litCount = sim.lanterns.filter((l) => l.lit).length;
-  lanternsValEl.textContent = `${litCount} / ${sim.lanterns.length}`;
+  const reqCount = Math.ceil(sim.lanterns.length * (sim.tuning.win_ratio || 0.6));
+  lanternsValEl.innerHTML = `${litCount} / ${sim.lanterns.length} <span style="font-size:12px;opacity:0.8;">(Cần &ge; ${reqCount})</span>`;
   scoreValEl.textContent = sim.score + totalCampaignScore;
 
   // Dynamic ambient light according to formula: 0.15 + 0.55 * (litCount / totalCount)
   ambientLight.intensity = 0.15 + 0.55 * (litCount / Math.max(1, sim.lanterns.length));
 
-  // Mote inventory bar (10 slots)
-  for (let i = 0; i < 10; i++) {
-    if (i < sim.player.carried) {
-      moteSlots[i].classList.add('filled');
-    } else {
-      moteSlots[i].classList.remove('filled');
+  // Dynamic Mote inventory bar & Capacity (Ticket-03 Section 4: 10 + 2 * successful_lights, max 20)
+  const capacity = sim.getCapacity();
+  const carriedValEl = document.getElementById('carried-val');
+  const capacityValEl = document.getElementById('capacity-val');
+  if (carriedValEl) carriedValEl.textContent = sim.player.carried;
+  if (capacityValEl) capacityValEl.textContent = capacity;
+
+  const moteBarEl = document.getElementById('mote-bar');
+  if (moteBarEl) {
+    while (moteBarEl.children.length < capacity) {
+      const slot = document.createElement('div');
+      slot.className = 'mote-slot';
+      moteBarEl.appendChild(slot);
+    }
+    while (moteBarEl.children.length > capacity) {
+      moteBarEl.removeChild(moteBarEl.lastChild);
+    }
+    for (let i = 0; i < capacity; i++) {
+      if (i < sim.player.carried) {
+        moteBarEl.children[i].classList.add('filled');
+      } else {
+        moteBarEl.children[i].classList.remove('filled');
+      }
     }
   }
 
@@ -1121,53 +1230,97 @@ function updateHUD() {
     windAlert.style.display = 'none';
   }
 
-  // Nearby unlit lantern prompt
+  // Nearby eligible lantern prompt (Ticket-03 Section 1: Thắp mới, Thắp lại 5 đom đóm, Châm dầu)
   let nearLantern = null;
+  let nearDist = 999;
   for (const l of sim.lanterns) {
-    if (!l.lit && dist2D(sim.player.pos, l.pos) <= 2.0) {
-      nearLantern = l;
-      break;
+    const d = dist2D(sim.player.pos, l.pos);
+    if (d <= (sim.tuning.interact_radius || 2.0)) {
+      if (!l.lit || l.fuel_ticks < 6000) {
+        if (d < nearDist) {
+          nearDist = d;
+          nearLantern = l;
+        }
+      }
     }
   }
   if (nearLantern) {
     interactPrompt.style.display = 'block';
-    promptDeposit.textContent = `${nearLantern.deposited}/${sim.tuning.lantern_cost || 10}`;
+    if (!nearLantern.lit) {
+      const cost = nearLantern.ever_lit ? (sim.tuning.relight_cost || 5) : (sim.tuning.lantern_cost || 10);
+      promptDeposit.textContent = nearLantern.ever_lit
+        ? `Thắp Lại: ${nearLantern.deposited}/${cost}`
+        : `Thắp Mới: ${nearLantern.deposited}/${cost}`;
+    } else {
+      const curFuel = Math.round(nearLantern.fuel_ticks / 60);
+      promptDeposit.textContent = `Châm Dầu: ${curFuel}/100`;
+    }
   } else {
     interactPrompt.style.display = 'none';
   }
 
-  // Lantern lights & safe zone mesh visual
+  // 3D Lantern visual state: fuel gauge, 1Hz blinking when fuel < 30, torn paper squashed mesh when unlit
   for (const lData of sim.lanterns) {
     const meshObj = lanternMeshes.find((m) => m.id === lData.id);
     if (meshObj) {
       if (lData.lit) {
-        meshObj.boxMesh.material.color.setHex(0xffb347);
-        meshObj.boxMesh.material.emissive = new THREE.Color(0xffe9b0);
-        meshObj.boxMesh.material.emissiveIntensity = 1.0;
-        meshObj.light.intensity = 2.5 + Math.sin(Date.now() * 0.013 + lData.pos[0]) * 0.25 + Math.sin(Date.now() * 0.031) * 0.12;
-        meshObj.circleMesh.material.opacity = 0.5;
-        meshObj.halo.material.opacity = 0.85 + Math.sin(Date.now() * 0.004) * 0.1;
+        meshObj.fuelBarGroup.visible = true;
+        meshObj.fuelBarGroup.quaternion.copy(camera.quaternion);
+
+        const currentFuel = lData.fuel_ticks / 60;
+        meshObj.fillMesh.scale.x = Math.max(0.001, currentFuel / 100);
+
+        // Unsquashed standard size
+        meshObj.boxMesh.scale.set(1.0, 1.0, 1.0);
+        meshObj.roof.position.y = 4.5;
+        if (meshObj.tornPatches) meshObj.tornPatches.forEach((p) => (p.visible = false));
+
+        if (currentFuel < 30) {
+          // Fuel < 30: loses safe zone, blinks slowly at 1 Hz (1000ms period = 500ms on / 500ms off)
+          meshObj.circleMesh.material.opacity = 0;
+          const blinkOn = (Math.floor(Date.now() / 500) % 2) === 0;
+          meshObj.boxMesh.material.color.setHex(blinkOn ? 0xffb347 : 0x5b3a1a);
+          meshObj.boxMesh.material.emissiveIntensity = blinkOn ? 0.9 : 0.15;
+          meshObj.light.intensity = blinkOn ? 2.2 : 0.4;
+          meshObj.halo.material.opacity = blinkOn ? 0.8 : 0.1;
+          meshObj.fillMesh.material.color.setHex(blinkOn ? (isColorblind ? 0xffffff : 0xff5a5f) : 0x331111);
+        } else {
+          // Fuel >= 30: safe zone active, steady warm light
+          meshObj.boxMesh.material.color.setHex(0xffb347);
+          meshObj.boxMesh.material.emissive = new THREE.Color(0xffe9b0);
+          meshObj.boxMesh.material.emissiveIntensity = 1.0;
+          meshObj.light.intensity = 2.5 + Math.sin(Date.now() * 0.013 + lData.pos[0]) * 0.25;
+          meshObj.circleMesh.material.opacity = 0.5;
+          meshObj.halo.material.opacity = 0.85 + Math.sin(Date.now() * 0.004) * 0.1;
+          meshObj.fillMesh.material.color.setHex(isColorblind ? 0x00b3ff : 0x50c878);
+        }
       } else {
+        // Unlit: hide fuel bar, lights off, squashed 20% in Y, show torn paper patches
+        meshObj.fuelBarGroup.visible = false;
         meshObj.boxMesh.material.color.setHex(0x5b5f6e);
         meshObj.boxMesh.material.emissiveIntensity = 0;
         meshObj.light.intensity = 0;
         meshObj.circleMesh.material.opacity = 0;
         meshObj.halo.material.opacity = 0;
+
+        meshObj.boxMesh.scale.set(1.15, 0.8, 1.15); // Squashed 20%
+        meshObj.roof.position.y = 4.2;
+        if (meshObj.tornPatches) meshObj.tornPatches.forEach((p) => (p.visible = true));
       }
     }
   }
 
-  // Modals for Victory / Defeat
+  // Modals for Victory / Defeat (Ticket-03 Section 3: dawn_survived)
   if (sim.state === 'won' && modalVictory.style.display !== 'flex') {
     modalVictory.style.display = 'flex';
     victoryScore.textContent = sim.score;
     if (sim.night === 3) {
-      victoryTitle.textContent = 'CHIẾN THẮNG TRỌN VẸN — BÌNH MINH LÊN!';
-      victoryStory.textContent = `Mây đã cứu lấy cả 3 hòn đảo giữa biển mây! Tổng điểm toàn bộ chiến dịch: ${sim.score + totalCampaignScore} điểm!`;
-      document.getElementById('btn-next-night').textContent = 'Chơi Lại Từ Đầu';
+      victoryTitle.textContent = 'BÌNH MINH ĐÃ TỚI — CHIẾN DỊCH HOÀN TẤT!';
+      victoryStory.textContent = `Mây đã bảo vệ trọn vẹn 3 hòn đảo qua 3 đêm đen tối tới bình minh! Tổng điểm toàn bộ chiến dịch: ${sim.score + totalCampaignScore} điểm!`;
+      document.getElementById('btn-next-night').textContent = 'Chơi Lại Toàn Bộ';
     } else {
-      victoryTitle.textContent = `CHIẾN THẮNG ${titles[sim.night].toUpperCase()}!`;
-      victoryStory.textContent = 'Ánh sáng đã quay trở lại xua tan màn sương đen bao phủ hòn đảo!';
+      victoryTitle.textContent = `BÌNH MINH LÊN — SỐNG SÓT QUA ${titles[sim.night].toUpperCase()}!`;
+      victoryStory.textContent = `Ánh sáng bình minh đã tới! Bạn đã giữ được ${litCount}/${sim.lanterns.length} ngọn đèn sáng rực rỡ và nhận điểm thưởng bình minh!`;
       document.getElementById('btn-next-night').textContent = 'Đêm Tiếp Theo ➔';
     }
   } else if (sim.state === 'lost' && modalDefeat.style.display !== 'flex') {
@@ -1225,6 +1378,7 @@ window.setMouseSens = function (val) {
 function loadNight(night) {
   sim = new Simulation({ seed: Date.now(), night, tuning: getTuning() });
   document.querySelectorAll('.easy-toggle').forEach((el) => (el.checked = easyModeOn()));
+  document.querySelectorAll('.cb-toggle').forEach((el) => (el.checked = isColorblind));
   buildIsland3D(night);
   rebuildLanterns();
 
@@ -1288,7 +1442,9 @@ function gameLoop(currentTime) {
       for (const ev of events) {
         if (ev.name === 'mote_picked') audio.playPickup();
         if (ev.name === 'deposit') audio.playDeposit();
+        if (ev.name === 'refuel') audio.playRefuel();
         if (ev.name === 'lantern_lit') audio.playLanternLit();
+        if (ev.name === 'lantern_out') audio.playLanternOut();
         if (ev.name === 'pulse') {
           audio.playPulse();
           triggerPulseVisual();

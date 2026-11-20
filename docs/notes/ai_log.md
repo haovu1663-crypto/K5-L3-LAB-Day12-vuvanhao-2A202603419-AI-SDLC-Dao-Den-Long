@@ -36,3 +36,19 @@
 - Sinh các tệp bằng chứng headless: `docs/proof/proof_refuel.jsonl`, `docs/proof/proof_drain.jsonl`, `docs/proof/proof_relight.jsonl`.
 - Kết quả: 6/6 test hồi quy Phase 1, 6/6 test Phase 2, 7/7 test Phase 3 đều đạt 100%; benchmark 21.600 tick đạt 0.379s (<= 30s).
 - Ước tính token sử dụng: ~6,500 tokens.
+
+### Bước 3.4: Nâng cấp Đồ họa 3D, Thanh Nhiên Liệu Đèn & Chế Độ Mù Màu (Colorblind Mode)
+- Triển khai thanh đo nhiên liệu 3D (Fuel Gauge Bar) trực quan gắn trên mỗi ngọn đèn:
+  - Tự động xoay mặt về camera (`billboard`).
+  - Co giãn tỷ lệ theo lượng dầu thực tế `fuel / 100`.
+  - Khi `fuel < 30`: Đèn mất vùng an toàn, cả lồng đèn và thanh dầu nhấp nháy chậm với tần số 1 Hz (1000ms chu kỳ).
+- Thiết kế hình thái thị giác phân biệt không cần màu sắc cho đèn tắt (Ticket-03 Section 6):
+  - Lồng đèn tắt bị xẹp 20% chiều cao (`scale.y = 0.8`), mái hạ thấp tương ứng.
+  - Thêm các mảng họa tiết giấy rách trên thân lồng đèn tắt.
+- Chế độ Mù màu "Bảng màu dễ phân biệt":
+  - Lưu và tải cài đặt từ `localStorage` (`dao_cb`), hỗ trợ bật/tắt tức thì trong Intro Modal và Pause Modal.
+  - Viền và mắt Bóng Mực đổi từ `#7A3CFF` sang `#00B3FF`.
+  - Màu cảnh báo UI chuyển từ `#FF5A5F` sang `#FFFFFF` kèm biểu tượng cảnh báo ⚠.
+- Hiển thị HUD sức chứa động: `đang mang / sức chứa` (tự động điều chỉnh số ô chứa từ 10 đến 20 slots).
+- Cập nhật âm thanh phản hồi cho sự kiện châm dầu (`refuel`) và tắt đèn hết dầu (`lantern_out`).
+- Ước tính token sử dụng: ~4,000 tokens.
