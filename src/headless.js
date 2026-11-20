@@ -66,7 +66,6 @@ function main() {
       if (!inputsData.frames || !Array.isArray(inputsData.frames)) {
         throw new Error('Inputs file missing "frames" array');
       }
-      // Check strictly increasing tick
       let lastTick = -1;
       for (const frame of inputsData.frames) {
         if (typeof frame.tick !== 'number' || frame.tick <= lastTick) {
@@ -132,13 +131,13 @@ function main() {
       outLines.push(JSON.stringify(ev));
     }
 
-    // Snapshot every N ticks
+    // Snapshot every N ticks (when playing or paused)
     if (sim.tick % options.snapshotEvery === 0) {
       outLines.push(JSON.stringify(sim.getSnapshot()));
     }
 
-    // Check if game ended early
-    if (sim.state !== 'playing') {
+    // Stop if game ended (won or lost)
+    if (sim.state === 'won' || sim.state === 'lost') {
       break;
     }
   }
@@ -146,7 +145,6 @@ function main() {
   // End report
   outLines.push(JSON.stringify(sim.getEndReport()));
 
-  // Write all to file with newline
   fs.writeFileSync(outPath, outLines.join('\n') + '\n', 'utf8');
   process.exit(0);
 }
