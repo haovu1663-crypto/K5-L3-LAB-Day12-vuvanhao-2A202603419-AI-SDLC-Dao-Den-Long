@@ -460,6 +460,24 @@ export class Simulation {
     if (this.player.charm_ticks > 0) this.player.charm_ticks--;
     if (this.player.fall_wait_ticks > 0) this.player.fall_wait_ticks--;
 
+    // Shade stunned & recoil counters (decremented in Step 2)
+    for (const s of this.shades) {
+      if (s.state === 'stunned') {
+        if (s.push_ticks_left > 0) {
+          s.push_ticks_left--;
+        }
+        if (s.state_ticks_left > 0) {
+          s.state_ticks_left--;
+          if (s.state_ticks_left <= 0) s.state = 'chase';
+        }
+      } else if (s.state === 'recoil') {
+        if (s.state_ticks_left > 0) {
+          s.state_ticks_left--;
+          if (s.state_ticks_left <= 0) s.state = 'chase';
+        }
+      }
+    }
+
     // TTL for dropped motes
     for (const m of this.motes) {
       if (m.active && m.ttl_ticks !== null && m.ttl_ticks !== undefined) {
@@ -644,12 +662,14 @@ export class Simulation {
 
     // Ground check
     const gh = this.getGroundHeight(this.player.pos[0], this.player.pos[2]);
-    if (this.player.pos[1] <= gh) {
+    if (gh === -999) {
+      this.player.grounded = false;
+    } else if (this.player.pos[1] <= gh) {
       this.player.pos[1] = gh;
       this.player.vel[1] = 0;
       this.player.grounded = true;
       this.player.launch_active = false;
-    } else if (gh !== -999 && this.player.pos[1] > gh && this.player.dash_active_ticks <= 0) {
+    } else if (this.player.pos[1] > gh && this.player.dash_active_ticks <= 0) {
       this.player.grounded = false;
     }
 
@@ -892,23 +912,16 @@ export class Simulation {
 
       if (s.state === 'stunned') {
         if (s.push_ticks_left > 0) {
-          s.push_ticks_left--;
           s.pos[0] = round3(s.pos[0] + s.push_vel[0]);
           s.pos[2] = round3(s.pos[2] + s.push_vel[1]);
-        }
-        if (s.state_ticks_left > 0) {
-          s.state_ticks_left--;
-          if (s.state_ticks_left <= 0) s.state = 'chase';
         }
         continue;
       }
 
       if (s.state === 'recoil') {
         if (s.state_ticks_left > 0) {
-          s.state_ticks_left--;
           s.pos[0] = round3(s.pos[0] + s.push_vel[0]);
           s.pos[2] = round3(s.pos[2] + s.push_vel[1]);
-          if (s.state_ticks_left <= 0) s.state = 'chase';
         }
         continue;
       }
