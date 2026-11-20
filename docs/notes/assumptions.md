@@ -1,44 +1,47 @@
 # Giả định kỹ thuật & Yêu cầu qua các Phase
 
 ## Phase 1 (PRD-0) — Đêm 1: Đảo Bến
+*(Đã lưu trữ và hoàn thành ở tag `phase-1`)*
 
-### 1. Phạm vi cốt lõi & Tiêu chí nghiệm thu
-- **Nhân vật (Mây)**:
-  - Tốc độ di chuyển: 6.0 m/s (0.1 m/tick ở 60Hz).
-  - Máu (flames): Ban đầu có 3 ngọn lửa (`flames = 3`).
-  - Sức chứa đom đóm mang theo tối đa: 10 (`carry_capacity = 10`).
-  - Khi bị Bóng Mực đánh trúng: Mất 1 flame, rơi 50% số đom đóm đang mang (`hit_drop_ratio = 0.5`, làm tròn xuống), nhận thời gian miễn nhiễm 1.5s (`invuln_s = 1.5`).
-- **Kỹ năng Tỏa sáng (Pulse)**:
-  - Tiêu tốn: 1 đom đóm đang giữ (`pulse_cost = 1`). Nếu `carried < 1`, không kích hoạt được pulse.
-  - Bán kính: 5.0 m (`pulse_radius = 5.0`).
-  - Hiệu ứng lên Bóng Mực: Choáng trong 3.0s (`pulse_stun_s = 3.0`), đẩy lùi 3.0m ra xa người chơi (`pulse_push_m = 3.0`).
-  - Hồi chiêu: 1.0s (`pulse_cooldown_s = 1.0`).
-- **Đèn Lồng Lớn (5 đèn L1 đến L5)**:
-  - Mỗi đèn cần 5 đom đóm để thắp sáng (`lantern_cost = 5`).
-  - Khoảng cách tương tác để nạp: 2.5 m (`interact_radius = 2.5`).
-  - Nạp khi người chơi nhấn `interact` trong bán kính. Người chơi nạp toàn bộ số đom đóm đang có cho đến khi đèn đủ 5 đom đóm hoặc người chơi hết đom đóm mang theo.
-  - Vùng an toàn của đèn đã thắp: Bán kính 6.0 m (`safe_radius = 6.0`). Bóng Mực không thể xâm nhập vùng này (bị cản ở rìa hoặc quay đầu).
-- **Đom đóm (Motes)**:
-  - Bán kính nhặt: 1.5 m (`pickup_radius = 1.5`). Khi khoảng cách người chơi đến đom đóm <= 1.5m, tự động nhặt nếu chưa đầy sức chứa.
+---
+
+## Phase 2 (TICKET-02) — "Ba hòn đảo" (Contract v1.1)
+
+### 1. Thay đổi chuẩn hóa từ Ticket-02 (thay thế giả định Phase 1)
+- **Chi phí thắp đèn**: Tăng từ 5 lên **10 đom đóm**. Cho phép nạp nhiều lần, đèn ghi nhớ tiến độ tích lũy.
+- **Bán kính tương tác đèn**: Chuẩn hóa thành **2.0 m** (Phase 1 dùng 2.5 m).
+- **Bán kính nhặt đom đóm**: Chuẩn hóa thành **XZ ≤ 1.0 m** và chênh cao giữa chân Mây và mặt đất nơi đặt đom đóm **≤ 1.5 m** (Phase 1 dùng 1.5 m).
+- **Kỹ năng Tỏa Sáng (Pulse)**:
+  - Chi phí: Tăng từ 1 lên **3 đom đóm** (không đủ 3 con thì không kích hoạt).
+  - Hồi chiêu: **3.0 s** (Phase 1 dùng 1.0 s).
+  - Điểm thưởng trúng pulse: Chuẩn hóa thành **+5 điểm/con** (Phase 1 dùng 20 điểm).
+  - Thời gian choáng: 120 ticks, đẩy lùi 4 m trong 15 tick đầu theo phương ngang.
 - **Bóng Mực (Shades)**:
-  - Tốc độ đuổi: 3.5 m/s.
-  - Bán kính chạm gây sát thương: 1.2 m (`shade_hit_radius = 1.2`).
-  - Trạng thái: `chase` (đuổi theo người chơi), `stunned` (bị choáng bởi pulse).
-- **Màn chơi & Thời gian**:
-  - Thời lượng Đêm 1: 300 giây (18.000 ticks ở 60Hz).
-  - Điều kiện Thắng: Thắp sáng đủ 5 đèn (`lantern_lit` đủ L1-L5) -> `game_over` kết quả `won`, lý do `all_lit`.
-  - Điều kiện Thua:
-    - Hết máu (`flames <= 0`) -> `game_over` kết quả `lost`, lý do `no_flames`.
-    - Hết thời gian (`time_left_s <= 0`) -> `game_over` kết quả `lost`, lý do `dawn`.
-- **Hệ thống điểm**:
-  - Nhặt 1 đom đóm: +10 điểm.
-  - Thắp sáng 1 đèn: +100 điểm.
-  - Choáng 1 Bóng Mực: +20 điểm.
-  - Khi thắng, cộng điểm thưởng: +1 điểm mỗi giây còn lại (`per_second_left`), +50 điểm mỗi flame còn lại (`per_flame_left`).
-- **Rơi khỏi đảo**: `fall_enabled = false` (Phase 1 tập trung mặt đất phẳng Y=0, không có cơ chế rớt vực).
+  - Tốc độ: 4.0 m/s (Đêm 3 là 4.5 m/s).
+  - Phạm vi phát hiện: 12 m; bỏ đuổi khi Mây vượt quá 18 m.
+  - Trạng thái chuẩn hóa bắt buộc: `spawning`, `wander`, `chase`, `recoil`, `stunned`.
+  - Va chạm: XZ ≤ 1.0 m và chênh cao ≤ 1.5 m. Gây hit lùi 2 m trong 60 tick. Mây bất tử 90 tick và rơi `floor(carried / 2)` đom đóm ra vành 1.5–2.5 m (tồn tại 480 tick).
+- **Rơi khỏi đảo**: `fall_enabled = true`. Khi Y < -10 m: mất 1 flame, mất toàn bộ đom đóm, chờ 60 tick rồi hồi sinh tại vị trí xuất phát với vận tốc 0, bất tử 90 tick.
+- **Điểm thắng cuộc**: `+ floor(giây còn lại) × 2 + 50 × Ngọn Lửa còn lại`.
 
-### 2. Định dạng Tọa độ & Tính tất định
-- Đơn vị đo là mét; trục Y hướng lên; mặt đất ở Y = 0.
-- Tính toán khoảng cách theo mặt phẳng ngang 2D (XZ): `dist = sqrt((x1-x2)^2 + (z1-z2)^2)`.
-- Mọi tọa độ xuất trong file JSONL được làm tròn 3 chữ số thập phân (`toFixed(3)`).
-- Sử dụng thuật toán sinh số ngẫu nhiên giả lập (PRNG - LCG/XorShift) theo `--seed` để đảm bảo cùng seed, scenario và input sẽ sinh đúng 100% output JSONL.
+### 2. Tính năng mới & Cơ chế mở rộng
+- **Kỹ năng Lướt (Dash)**:
+  - Tốc độ: 14 m/s trong 0.2 s (12 ticks).
+  - Hồi chiêu: 1.5 s tính từ lúc bắt đầu lướt.
+  - Hướng lướt: Theo hướng di chuyển; nếu đứng yên thì theo hướng quay mặt. Trên không giữ nguyên độ cao (Y vel = 0).
+- **Nhảy**: Vận tốc 7.0 m/s, trọng lực -20 m/s², chỉ nhảy khi chạm đất (`grounded`).
+- **Gió Lạc (Drifters)** (Đêm 2 & 3):
+  - Tốc độ bay 7.0 m/s, tối đa 2 con. Sinh tại tick 1200, 2400...
+  - Khi Mây mang ≥ 5 đom đóm và cách ≤ 15 m: Gió Lạc chuyển `chase` cướp `min(3, carried)` đom đóm rồi chuyển sang `flee` bay ra xa trong 240 tick rồi biến mất.
+  - Nếu bị Pulse trúng lúc đang flee mang đồ: Rơi toàn bộ đom đóm đã cướp lại tại chỗ.
+- **Bùa Gió (Wind Charm)**:
+  - Nhặt được như đom đóm, hiệu lực 600 tick: Tăng tốc độ chạy lên 7.2 m/s và Lướt Dash không có thời gian hồi chiêu! Tái xuất hiện sau 2700 tick.
+- **Bục nhảy (Jump pads)**:
+  - Đêm 2: Bắn người chơi lên Y=14 m/s và vận tốc ngang 24 m/s hướng về tâm đảo kia.
+  - Đêm 3: Bắn lên tầng 2 (Y=12 m/s, ngang 8 m/s hướng -Z).
+- **Gió mạnh (Đêm 3)**:
+  - Mỗi 30 s có một cơn gió 5 s đẩy người chơi 2 m/s theo hướng ngẫu nhiên (báo trước 2 s).
+- **Hệ thống 3 Đêm**:
+  - Đêm 1 (Đảo Bến, 300s, 5 đèn L1..L5).
+  - Đêm 2 (Đảo Cau, 330s, 6 đèn L1..L6, 2 đảo nối cầu tre, bục nhảy, Gió Lạc, Bùa Gió).
+  - Đêm 3 (Đảo Chuông, 360s, 7 đèn L1..L7, 3 tầng, tháp chuông, bục nhảy, gió mạnh).
