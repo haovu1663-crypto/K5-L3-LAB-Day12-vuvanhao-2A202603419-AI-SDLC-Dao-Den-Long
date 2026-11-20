@@ -295,6 +295,55 @@ const particles = new THREE.Points(
 );
 scene.add(particles);
 
+// ---- Ground texture + grass blades (visual-only) ----
+function makeGroundTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f2f2f2';
+  g.fillRect(0, 0, 256, 256);
+  let s = 31;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 1400; i++) {
+    const v = 215 + Math.floor(rnd() * 40);
+    g.fillStyle = `rgba(${v},${v},${v},0.5)`;
+    g.fillRect(rnd() * 256, rnd() * 256, 2 + rnd() * 5, 2 + rnd() * 5);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(10, 10);
+  return t;
+}
+
+function addGrass(cx, cz, R, rnd) {
+  const COUNT = 1400;
+  const geo = new THREE.ConeGeometry(0.07, 0.55, 4);
+  geo.translate(0, 0.27, 0);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x3a7664, roughness: 0.9 });
+  const inst = new THREE.InstancedMesh(geo, mat, COUNT);
+  const m4 = new THREE.Matrix4();
+  const col = new THREE.Color();
+  let placed = 0;
+  while (placed < COUNT) {
+    const a = rnd() * Math.PI * 2;
+    const r = Math.sqrt(rnd()) * (R - 1);
+    const x = cx + r * Math.cos(a);
+    const z = cz + r * Math.sin(a);
+    if (x > 24 && x < 46 && Math.abs(z) < 3.5) { placed++; m4.makeScale(0, 0, 0); inst.setMatrixAt(placed - 1, m4); continue; }
+    const sc = 0.7 + rnd() * 1.1;
+    m4.makeRotationZ((rnd() - 0.5) * 0.4);
+    m4.scale(new THREE.Vector3(sc, sc, sc));
+    m4.setPosition(x, 0, z);
+    inst.setMatrixAt(placed, m4);
+    col.setHSL(0.42 + rnd() * 0.04, 0.35, 0.3 + rnd() * 0.12);
+    inst.setColorAt(placed, col);
+    placed++;
+  }
+  inst.instanceMatrix.needsUpdate = true;
+  if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+  islandGroup.add(inst);
+}
+
 // Visual-only decoration (cây, đá) – tất định, không dùng RNG của simulation
 function addDecor(night) {
   let s = 99 + night;
@@ -329,6 +378,7 @@ function addDecor(night) {
       g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
       islandGroup.add(g);
     }
+    addGrass(cx, cz, R, rnd);
   }
 }
 
@@ -347,6 +397,9 @@ moonLight.shadow.camera.bottom = -45;
 moonLight.shadow.camera.far = 200;
 scene.add(moonLight);
 scene.add(moonLight.target);
+
+const hemiLight = new THREE.HemisphereLight(0x1b2350, 0x2f5d50, 0.35);
+scene.add(hemiLight);
 
 // Island Environment Group
 let islandGroup = new THREE.Group();
@@ -372,7 +425,7 @@ function buildIsland3D(night) {
   islandGroup.add(clouds);
   addDecor(night);
 
-  const grassMat = new THREE.MeshStandardMaterial({ color: 0x2f5d50, roughness: 0.8 });
+  const grassMat = new THREE.MeshStandardMaterial({ color: 0x2f5d50, roughness: 0.8, map: makeGroundTexture() });
   const sandMat = new THREE.MeshStandardMaterial({ color: 0xc9b48a, roughness: 0.9 });
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.85 });
 
@@ -474,6 +527,7 @@ function buildIsland3D(night) {
 }
 
 // Player 3D Mesh: Mây (Robes #E8E2D0, Red Scarf #C8102E, Nón lá)
+const limbs = {};
 const playerGroup = new THREE.Group();
 function createPlayerMesh() {
   // Body (Robe #E8E2D0)
@@ -515,6 +569,36 @@ function createPlayerMesh() {
   const smallLantern = new THREE.Mesh(lanternGeo, lanternMat);
   smallLantern.position.set(0.35, 1.35, 0.25);
   playerGroup.add(smallLantern);
+
+  // Arms, legs, scarf tail, eyes (visual animation)
+  const skin = new THREE.MeshStandardMaterial({ color: 0xf5cfab });
+  const robe = new THREE.MeshStandardMaterial({ color: 0xe8e2d0, roughness: 0.7 });
+  const mkLimb = (geo, mat, x, y) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(x, y, 0);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = -geo.parameters.height / 2;
+    pivot.add(m);
+    playerGroup.add(pivot);
+    return pivot;
+  };
+  limbs.armL = mkLimb(new THREE.CylinderGeometry(0.08, 0.07, 0.6, 8), robe, -0.42, 1.05);
+  limbs.armR = mkLimb(new THREE.CylinderGeometry(0.08, 0.07, 0.6, 8), robe, 0.42, 1.05);
+  limbs.legL = mkLimb(new THREE.CylinderGeometry(0.1, 0.09, 0.4, 8), skin, -0.18, 0.2);
+  limbs.legR = mkLimb(new THREE.CylinderGeometry(0.1, 0.09, 0.4, 8), skin, 0.18, 0.2);
+  const eyeMat2 = new THREE.MeshBasicMaterial({ color: 0x221a14 });
+  const eg = new THREE.SphereGeometry(0.035, 8, 8);
+  const eL = new THREE.Mesh(eg, eyeMat2); eL.position.set(-0.1, 1.38, 0.27);
+  const eR = new THREE.Mesh(eg, eyeMat2); eR.position.set(0.1, 1.38, 0.27);
+  playerGroup.add(eL, eR);
+  const tail = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 0.05, 0.7),
+    new THREE.MeshStandardMaterial({ color: 0xc8102e })
+  );
+  tail.geometry.translate(0, 0, -0.35);
+  tail.position.set(0, 1.12, -0.3);
+  playerGroup.add(tail);
+  limbs.tail = tail;
 
   const pHalo = glowSprite(lanternGlowTex, 2.4, 0.9);
   pHalo.position.set(0.35, 1.35, 0.25);
@@ -653,6 +737,21 @@ function updateShadesVisual() {
     rightEye.position.set(0.25, 1.2, 0.55);
     group.add(leftEye, rightEye);
 
+    // Wispy tendrils
+    const tendrils = [];
+    for (let k = 0; k < 4; k++) {
+      const t = new THREE.Mesh(
+        new THREE.ConeGeometry(0.16, 1.1, 6),
+        new THREE.MeshStandardMaterial({ color: 0x120a1a, emissive: 0x7a3cff, emissiveIntensity: 0.35, transparent: true, opacity: 0.85 })
+      );
+      t.geometry.translate(0, -0.55, 0);
+      t.position.set(Math.cos(k * 1.57) * 0.35, 0.8, Math.sin(k * 1.57) * 0.35);
+      t.rotation.x = Math.PI;
+      group.add(t);
+      tendrils.push(t);
+    }
+    group.userData.tendrils = tendrils;
+
     scene.add(group);
     shadeMeshes.push({ group, body, leftEye, rightEye });
   }
@@ -662,6 +761,14 @@ function updateShadesVisual() {
     const sm = shadeMeshes[i];
     sm.group.position.set(sData.pos[0], sData.pos[1], sData.pos[2]);
     sm.group.lookAt(playerGroup.position.x, playerGroup.position.y, playerGroup.position.z);
+    {
+      const tt = Date.now() * 0.006 + i;
+      sm.body.scale.setScalar(1 + Math.sin(tt) * 0.06);
+      sm.group.userData.tendrils.forEach((t, k) => {
+        t.rotation.z = Math.sin(tt * 1.3 + k) * 0.35;
+        t.rotation.x = Math.PI + Math.cos(tt + k * 2) * 0.25;
+      });
+    }
 
     if (sData.state === 'stunned') {
       sm.body.material.color.setHex(0x3a3450);
@@ -911,7 +1018,7 @@ function updateHUD() {
         meshObj.boxMesh.material.color.setHex(0xffb347);
         meshObj.boxMesh.material.emissive = new THREE.Color(0xffe9b0);
         meshObj.boxMesh.material.emissiveIntensity = 1.0;
-        meshObj.light.intensity = 2.5;
+        meshObj.light.intensity = 2.5 + Math.sin(Date.now() * 0.013 + lData.pos[0]) * 0.25 + Math.sin(Date.now() * 0.031) * 0.12;
         meshObj.circleMesh.material.opacity = 0.5;
         meshObj.halo.material.opacity = 0.85 + Math.sin(Date.now() * 0.004) * 0.1;
       } else {
@@ -1060,7 +1167,12 @@ function gameLoop(currentTime) {
         }
         if (ev.name === 'dash') audio.playDash();
         if (ev.name === 'charm_picked') audio.playCharm();
-        if (ev.name === 'player_hit') audio.playHit();
+        if (ev.name === 'player_hit') {
+          audio.playHit();
+          const hf = document.getElementById('hit-flash');
+          hf.style.opacity = '1';
+          setTimeout(() => (hf.style.opacity = '0'), 180);
+        }
       }
     }
     accumulator -= tickInterval;
@@ -1098,6 +1210,22 @@ function gameLoop(currentTime) {
   }
 
   // Visual-only ambience
+  {
+    const moving = mx !== 0 || mz !== 0;
+    limbs.phase = (limbs.phase || 0) + (moving ? delta * 0.014 : 0);
+    const sw = moving ? Math.sin(limbs.phase) * 0.8 : 0;
+    limbs.armL.rotation.x = sw;
+    limbs.armR.rotation.x = -sw;
+    limbs.legL.rotation.x = -sw;
+    limbs.legR.rotation.x = sw;
+    limbs.tail.rotation.y = Math.sin(Date.now() * 0.006) * 0.25;
+    limbs.tail.rotation.x = moving ? -0.35 : -0.1;
+    if (moving && sim.player.grounded) playerGroup.position.y += Math.abs(Math.sin(limbs.phase)) * 0.08;
+    playerGroup.visible = !(sim.player.invuln_ticks > 0 && Math.floor(Date.now() / 90) % 2 === 0);
+    const targetFov = sim.player.dash_active_ticks > 0 ? 70 : 60;
+    camera.fov += (targetFov - camera.fov) * 0.2;
+    camera.updateProjectionMatrix();
+  }
   const tNow = Date.now() * 0.001;
   stars.rotation.y = tNow * 0.002;
   cloudLayers.forEach((m, i) => {
